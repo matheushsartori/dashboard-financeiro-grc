@@ -722,6 +722,46 @@ export async function getDRESummary(uploadId: number, mes?: number | null) {
   };
 }
 
+// Buscar DRE de todos os meses para tabela horizontal
+export async function getDREPorMeses(uploadId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const meses = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const drePorMeses = [];
+
+  for (const mes of meses) {
+    const dre = await getDRESummary(uploadId, mes);
+    if (dre) {
+      drePorMeses.push({
+        mes,
+        mesNome: getMesNome(mes),
+        receitas: dre.receitas.total,
+        despesas: dre.despesas.totalPago,
+        folha: dre.folha.totalFolha,
+        lucroOperacional: dre.resultado.lucroOperacional,
+        lucroLiquido: dre.resultado.lucroLiquido,
+        margemOperacional: dre.resultado.margemOperacional,
+        margemLiquida: dre.resultado.margemLiquida,
+      });
+    } else {
+      drePorMeses.push({
+        mes,
+        mesNome: getMesNome(mes),
+        receitas: 0,
+        despesas: 0,
+        folha: 0,
+        lucroOperacional: 0,
+        lucroLiquido: 0,
+        margemOperacional: 0,
+        margemLiquida: 0,
+      });
+    }
+  }
+
+  return drePorMeses;
+}
+
 function getMesNome(mes: number): string {
   const meses = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",

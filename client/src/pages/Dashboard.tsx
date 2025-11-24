@@ -8,6 +8,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { MonthFilter } from "@/components/MonthFilter";
 import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/Skeleton";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -79,10 +80,33 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="container max-w-7xl py-8">
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+        <div className="mb-8">
+          <Skeleton className="h-10 w-64 mb-2" />
+          <Skeleton className="h-4 w-96" />
         </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-40" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -215,30 +239,37 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Evolução Mensal</CardTitle>
             <CardDescription>
-              Comparativo de receitas, despesas e resultado por mês {selectedMonth ? `(filtrado: mês ${selectedMonth})` : ""}
+              Comparativo de receitas, despesas e resultado por mês {selectedMonth ? `(filtrado: mês ${selectedMonth})` : "(todos os meses)"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {filteredDadosMensais && filteredDadosMensais.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={filteredDadosMensais} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
                   <XAxis 
                     dataKey="mesNome" 
                     angle={-45} 
                     textAnchor="end" 
                     height={80} 
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "#9ca3af" }}
                     stroke="#6b7280"
                   />
                   <YAxis 
                     tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`}
                     stroke="#6b7280"
                     fontSize={11}
+                    tick={{ fill: "#9ca3af" }}
                   />
                   <Tooltip 
                     formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    contentStyle={{
+                      backgroundColor: "#1f2937",
+                      border: "1px solid #4b5563",
+                      borderRadius: "6px",
+                      color: "#f3f4f6",
+                    }}
+                    labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
                   />
                   <Legend />
                   <Line 
@@ -306,7 +337,13 @@ export default function Dashboard() {
                     </Pie>
                     <Tooltip 
                       formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #4b5563",
+                        borderRadius: "6px",
+                        color: "#f3f4f6",
+                      }}
+                      labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
                     />
                     <Legend />
                   </PieChart>
@@ -345,7 +382,13 @@ export default function Dashboard() {
                     />
                     <Tooltip 
                       formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #4b5563",
+                        borderRadius: "6px",
+                        color: "#f3f4f6",
+                      }}
+                      labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
                     />
                     <Bar 
                       dataKey="valor" 

@@ -82,7 +82,10 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const user = { name: "Usuário", email: "usuario@grc.com" };
-  const logout = () => {}; // Sem logout
+  const logout = () => {
+    localStorage.removeItem("isAuthenticated");
+    window.location.href = "/login";
+  };
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";

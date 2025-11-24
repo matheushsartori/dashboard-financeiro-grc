@@ -5,9 +5,11 @@ import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import { lazy, Suspense, useMemo, memo } from "react";
+import Login from "./pages/Login";
+import { lazy, Suspense, useMemo } from "react";
 import DashboardLayout from "./components/DashboardLayout";
 import { ProtectedRouteSkeleton } from "./components/ProtectedRoute";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Receitas = lazy(() => import("./pages/Receitas"));
@@ -28,33 +30,6 @@ const protectedRoutes = [
   "/importacao",
 ];
 
-function RouterContent() {
-  const [location] = useLocation();
-  const needsLayout = useMemo(() => {
-    return protectedRoutes.some(route => location.startsWith(route));
-  }, [location]);
-
-  const content = (
-    <Suspense fallback={needsLayout ? <ProtectedRouteSkeleton /> : <div className="flex items-center justify-center min-h-screen"><div>Carregando...</div></div>}>
-      <Switch>
-        <Route path={"/"} component={Home} />
-        <Route path={"/dashboard"} component={Dashboard} />
-        <Route path={"/receitas"} component={Receitas} />
-        <Route path={"/receitas/empresa"} component={ReceitasEmpresa} />
-        <Route path={"/despesas"} component={Despesas} />
-        <Route path={"/despesas/fornecedor"} component={DespesasFornecedor} />
-        <Route path={"/dre"} component={DRE} />
-        <Route path={"/folha"} component={Folha} />
-        <Route path={"/importacao"} component={Importacao} />
-        <Route path={"/404"} component={NotFound} />
-        <Route component={NotFound} />
-      </Switch>
-    </Suspense>
-  );
-
-  return content;
-}
-
 function Router() {
   const [location] = useLocation();
   const needsLayout = useMemo(() => {
@@ -64,15 +39,48 @@ function Router() {
   const routes = (
     <Suspense fallback={needsLayout ? <ProtectedRouteSkeleton /> : <div className="flex items-center justify-center min-h-screen"><div>Carregando...</div></div>}>
       <Switch>
+        <Route path={"/login"} component={Login} />
         <Route path={"/"} component={Home} />
-        <Route path={"/dashboard"} component={Dashboard} />
-        <Route path={"/receitas"} component={Receitas} />
-        <Route path={"/receitas/empresa"} component={ReceitasEmpresa} />
-        <Route path={"/despesas"} component={Despesas} />
-        <Route path={"/despesas/fornecedor"} component={DespesasFornecedor} />
-        <Route path={"/dre"} component={DRE} />
-        <Route path={"/folha"} component={Folha} />
-        <Route path={"/importacao"} component={Importacao} />
+        <Route path={"/dashboard"}>
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/receitas"}>
+          <ProtectedRoute>
+            <Receitas />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/receitas/empresa"}>
+          <ProtectedRoute>
+            <ReceitasEmpresa />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/despesas"}>
+          <ProtectedRoute>
+            <Despesas />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/despesas/fornecedor"}>
+          <ProtectedRoute>
+            <DespesasFornecedor />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/dre"}>
+          <ProtectedRoute>
+            <DRE />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/folha"}>
+          <ProtectedRoute>
+            <Folha />
+          </ProtectedRoute>
+        </Route>
+        <Route path={"/importacao"}>
+          <ProtectedRoute>
+            <Importacao />
+          </ProtectedRoute>
+        </Route>
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
       </Switch>

@@ -13,7 +13,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <Button variant="outline" size="sm" asChild>
-              <a href="/dashboard">Acessar Dashboard</a>
+              <a href="/login">Acessar Dashboard</a>
             </Button>
           </div>
         </div>
@@ -35,7 +35,7 @@ export default function Home() {
                 <a href="/importacao">Importar Dados</a>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <a href="/dashboard">Ver Dashboard</a>
+                <a href="/login">Ver Dashboard</a>
               </Button>
             </div>
           </div>

@@ -88,6 +88,14 @@ export const appRouter = router({
         return getDRESummary(input.uploadId, input.mes ?? null);
       }),
 
+    // Obter DRE de todos os meses (para tabela horizontal)
+    getDREPorMeses: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDREPorMeses } = await import("./db-financial");
+        return getDREPorMeses(input.uploadId);
+      }),
+
     // Obter dados mensais
     getDadosMensais: protectedProcedure
       .input(z.object({ uploadId: z.number() }))

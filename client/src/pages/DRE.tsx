@@ -42,6 +42,12 @@ export default function DRE() {
     { enabled: !!latestUpload }
   );
 
+  // Buscar DRE de todos os meses para tabela horizontal
+  const { data: drePorMeses } = trpc.financial.getDREPorMeses.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
   // Buscar dados totais (sem filtro) para comparação
   const { data: dreTotal } = trpc.financial.getDRESummary.useQuery(
     { uploadId: latestUpload! },
@@ -361,6 +367,116 @@ export default function DRE() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Tabela Horizontal DRE por Mês */}
+      {drePorMeses && drePorMeses.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>DRE Comparativo por Mês</CardTitle>
+            <CardDescription>
+              Comparativo horizontal de todos os meses - valores em R$
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="sticky left-0 bg-background z-10 font-semibold min-w-[200px]">Descrição</TableHead>
+                    {drePorMeses.map((item) => (
+                      <TableHead key={item.mes} className="text-right font-semibold min-w-[120px]">
+                        {item.mesNome}
+                      </TableHead>
+                    ))}
+                    <TableHead className="text-right font-semibold min-w-[120px] bg-muted">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* Receitas */}
+                  <TableRow className="font-bold bg-green-50 dark:bg-green-950/20">
+                    <TableCell className="sticky left-0 bg-green-50 dark:bg-green-950/20 z-10 font-bold">RECEITA OPERACIONAL BRUTA</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className="text-right text-green-600 font-bold">
+                        {formatCurrency(item.receitas)}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right text-green-600 font-bold bg-muted">
+                      {formatCurrency(drePorMeses.reduce((sum, item) => sum + item.receitas, 0))}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Despesas */}
+                  <TableRow className="font-semibold">
+                    <TableCell className="sticky left-0 bg-background z-10 pl-8">(-) Despesas Operacionais</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className="text-right text-red-600 font-semibold">
+                        ({formatCurrency(item.despesas)})
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right text-red-600 font-semibold bg-muted">
+                      ({formatCurrency(drePorMeses.reduce((sum, item) => sum + item.despesas, 0))})
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Lucro Operacional */}
+                  <TableRow className="font-bold bg-blue-50 dark:bg-blue-950/20">
+                    <TableCell className="sticky left-0 bg-blue-50 dark:bg-blue-950/20 z-10 font-bold">= LUCRO OPERACIONAL</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className={`text-right font-bold ${item.lucroOperacional >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                        {formatCurrency(item.lucroOperacional)}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-bold bg-muted">
+                      {formatCurrency(drePorMeses.reduce((sum, item) => sum + item.lucroOperacional, 0))}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Folha */}
+                  <TableRow className="font-semibold">
+                    <TableCell className="sticky left-0 bg-background z-10 pl-8">(-) Folha de Pagamento</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className="text-right text-red-600 font-semibold">
+                        ({formatCurrency(item.folha)})
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right text-red-600 font-semibold bg-muted">
+                      ({formatCurrency(drePorMeses.reduce((sum, item) => sum + item.folha, 0))})
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Lucro Líquido */}
+                  <TableRow className="font-bold bg-primary/10 border-t-2 border-primary">
+                    <TableCell className="sticky left-0 bg-primary/10 z-10 font-bold text-lg">= LUCRO LÍQUIDO</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className={`text-right font-bold text-lg ${item.lucroLiquido >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {formatCurrency(item.lucroLiquido)}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-bold text-lg bg-muted">
+                      {formatCurrency(drePorMeses.reduce((sum, item) => sum + item.lucroLiquido, 0))}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Margem Líquida */}
+                  <TableRow className="font-semibold">
+                    <TableCell className="sticky left-0 bg-background z-10 pl-8 text-muted-foreground">Margem Líquida (%)</TableCell>
+                    {drePorMeses.map((item) => (
+                      <TableCell key={item.mes} className={`text-right font-semibold ${item.margemLiquida >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {item.margemLiquida.toFixed(1)}%
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right font-semibold bg-muted text-muted-foreground">
+                      {drePorMeses.reduce((sum, item) => sum + item.receitas, 0) > 0 
+                        ? ((drePorMeses.reduce((sum, item) => sum + item.lucroLiquido, 0) / drePorMeses.reduce((sum, item) => sum + item.receitas, 0)) * 100).toFixed(1)
+                        : "0.0"}%
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabela Detalhada do DRE */}
       <Card className="mb-8">
