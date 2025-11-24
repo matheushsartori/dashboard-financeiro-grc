@@ -119,7 +119,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t py-8">
         <div className="container text-center text-sm text-muted-foreground">
-          <p>© 2025 {APP_TITLE}. Desenvolvido com tecnologia Manus.</p>
+          <p>© 2025 {APP_TITLE}. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

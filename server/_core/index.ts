@@ -35,6 +35,19 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // File upload endpoint (multipart/form-data)
+  const { uploadMiddleware, handleFileUpload } = await import("../upload-endpoint");
+  // Adicionar contexto tRPC ao request para autenticação
+  app.post("/api/upload", async (req, res, next) => {
+    (req as any).trpcContext = await createContext({ 
+      req, 
+      res,
+      info: { isBatchCall: false, calls: [] } as any
+    });
+    next();
+  }, uploadMiddleware, handleFileUpload);
+  
   // tRPC API
   app.use(
     "/api/trpc",

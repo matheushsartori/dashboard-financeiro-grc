@@ -48,6 +48,8 @@ const trpcClient = trpc.createClient({
           credentials: "include",
         });
       },
+      // Aumentar timeout para uploads grandes (5 minutos)
+      maxURLLength: Infinity,
     }),
   ],
 });

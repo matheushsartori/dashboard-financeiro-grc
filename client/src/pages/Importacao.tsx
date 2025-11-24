@@ -17,12 +17,15 @@ export default function Importacao() {
     onSuccess: (data) => {
       toast.success("Arquivo importado com sucesso!");
       utils.financial.listUploads.invalidate();
+      setUploading(false);
       setLocation(`/dashboard?uploadId=${data.uploadId}`);
     },
     onError: (error) => {
       toast.error(`Erro ao importar arquivo: ${error.message}`);
       setUploading(false);
     },
+    // Timeout de 5 minutos para uploads grandes
+    retry: false,
   });
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
@@ -37,21 +40,34 @@ export default function Importacao() {
       setUploading(true);
 
       try {
-        const buffer = await file.arrayBuffer();
-        const base64 = btoa(
-          new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-        );
+        // Usar FormData para upload multipart (mais eficiente)
+        const formData = new FormData();
+        formData.append("file", file);
 
-        await uploadMutation.mutateAsync({
-          fileName: file.name,
-          fileSize: file.size,
-          fileData: base64,
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
         });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Erro ao fazer upload");
+        }
+
+        const result = await response.json();
+        
+        toast.success("Arquivo importado com sucesso!");
+        utils.financial.listUploads.invalidate();
+        setUploading(false);
+        setLocation(`/dashboard?uploadId=${result.uploadId}`);
       } catch (error) {
         console.error("Error uploading file:", error);
+        toast.error(error instanceof Error ? error.message : "Erro ao importar arquivo");
+        setUploading(false);
       }
     },
-    [uploadMutation]
+    [utils, setLocation]
   );
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -128,9 +144,14 @@ export default function Importacao() {
                 {uploading ? (
                   <div className="flex flex-col items-center gap-4">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">
-                      Processando arquivo...
-                    </p>
+                    <div className="text-center">
+                      <p className="text-sm font-medium mb-1">
+                        Processando arquivo...
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Isso pode levar alguns minutos para arquivos grandes
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-4">

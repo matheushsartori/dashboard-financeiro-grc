@@ -90,3 +90,21 @@
 - [x] Página Receitas com análise de clientes
 - [x] Página Despesas com análise de fornecedores
 - [x] Página Folha de Pagamento com análise por área
+
+
+## Correções e Melhorias Solicitadas
+
+### Importação de Arquivos
+- [ ] Testar importação com arquivo Excel real da empresa
+- [ ] Corrigir timeout no upload de arquivos grandes
+- [ ] Implementar lógica para lidar com importações semanais sem duplicação
+- [ ] Adicionar opção de substituir dados ou manter histórico
+- [ ] Melhorar feedback visual durante processamento de arquivo grande
+- [ ] Validar que múltiplas importações funcionam corretamente
+
+
+### Correções de UI e Autenticação
+- [x] Corrigir nomes do menu lateral (Dashboard, Receitas, Despesas, Folha, Importação)
+- [x] Remover autenticação Manus e implementar acesso direto
+- [x] Remover "Made with Manus" do rodapé
+- [x] Ajustar ícones do menu para corresponder às funcionalidades
