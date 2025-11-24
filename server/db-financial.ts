@@ -647,14 +647,40 @@ export async function getDRESummary(uploadId: number, mes?: number | null) {
     .from(contasAPagar)
     .where(despesasWhere);
 
-  // Buscar folha (folha não tem mês, então sempre busca tudo)
-  const folhaResult = await db
-    .select({
-      totalFolha: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
-      totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
-    })
-    .from(folhaPagamento)
-    .where(eq(folhaPagamento.uploadId, uploadId));
+  // Buscar folha - se há filtro de mês, buscar apenas daquele mês, senão buscar total
+  let folhaResult;
+  if (mes !== null && mes !== undefined && mes >= 1 && mes <= 8) {
+    // Buscar folha do mês específico usando mes1, mes2, etc.
+    // A folha só tem até mes8, então se o mês for > 8, usar total
+    const mesFields = [
+      folhaPagamento.mes1,
+      folhaPagamento.mes2,
+      folhaPagamento.mes3,
+      folhaPagamento.mes4,
+      folhaPagamento.mes5,
+      folhaPagamento.mes6,
+      folhaPagamento.mes7,
+      folhaPagamento.mes8,
+    ];
+    const mesField = mesFields[mes - 1];
+    
+    folhaResult = await db
+      .select({
+        totalFolha: sql<number>`COALESCE(SUM(${mesField}), 0)`,
+        totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
+      })
+      .from(folhaPagamento)
+      .where(eq(folhaPagamento.uploadId, uploadId));
+  } else {
+    // Buscar folha total quando não há filtro de mês ou mês > 8
+    folhaResult = await db
+      .select({
+        totalFolha: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
+        totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
+      })
+      .from(folhaPagamento)
+      .where(eq(folhaPagamento.uploadId, uploadId));
+  }
 
   const receitas = receitasResult[0] || { totalValor: 0, totalRecebido: 0 };
   const despesas = despesasResult[0] || { totalValor: 0, totalPago: 0 };
