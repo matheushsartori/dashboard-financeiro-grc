@@ -116,3 +116,10 @@
 - [x] Fazer commit das alterações
 - [x] Push para o GitHub
 - [x] Validar conexão com o banco de dados
+
+
+### Revisão PostgreSQL
+- [x] Verificar drizzle.config.ts usa PostgreSQL
+- [x] Verificar schema.ts usa sintaxe PostgreSQL
+- [x] Verificar todas as queries são compatíveis com PostgreSQL
+- [x] Testar conexão e operações básicas

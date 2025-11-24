@@ -24,8 +24,8 @@ export async function createUpload(data: InsertUpload) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(uploads).values(data);
-  return result[0].insertId;
+  const result = await db.insert(uploads).values(data).returning({ id: uploads.id });
+  return result[0].id;
 }
 
 export async function updateUploadStatus(
@@ -59,7 +59,10 @@ export async function upsertPlanoContas(data: InsertPlanoContas[]) {
     await db
       .insert(planoContas)
       .values(item)
-      .onDuplicateKeyUpdate({ set: { descricao: item.descricao, tipo: item.tipo } });
+      .onConflictDoUpdate({
+        target: planoContas.codigo,
+        set: { descricao: item.descricao, tipo: item.tipo }
+      });
   }
 }
 
@@ -80,7 +83,10 @@ export async function upsertCentrosCusto(data: InsertCentroCusto[]) {
     await db
       .insert(centrosCusto)
       .values(item)
-      .onDuplicateKeyUpdate({ set: { descricao: item.descricao } });
+      .onConflictDoUpdate({
+        target: centrosCusto.codigo,
+        set: { descricao: item.descricao }
+      });
   }
 }
 
@@ -101,7 +107,10 @@ export async function upsertFornecedores(data: InsertFornecedor[]) {
     await db
       .insert(fornecedores)
       .values(item)
-      .onDuplicateKeyUpdate({ set: { nome: item.nome } });
+      .onConflictDoUpdate({
+        target: fornecedores.codigo,
+        set: { nome: item.nome }
+      });
   }
 }
 
