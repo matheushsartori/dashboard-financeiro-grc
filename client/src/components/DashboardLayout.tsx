@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, TrendingUp, TrendingDown, Wallet, Upload } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, TrendingUp, TrendingDown, Wallet, Upload, FileText } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -31,6 +31,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: TrendingUp, label: "Receitas", path: "/receitas" },
   { icon: TrendingDown, label: "Despesas", path: "/despesas" },
+  { icon: FileText, label: "DRE", path: "/dre" },
   { icon: Wallet, label: "Folha de Pagamento", path: "/folha" },
   { icon: Upload, label: "Importação", path: "/importacao" },
 ];

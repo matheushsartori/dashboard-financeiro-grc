@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
 
@@ -38,6 +38,11 @@ export default function Dashboard() {
   );
 
   const { data: contasReceberData } = trpc.financial.getContasAReceberSummary.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  const { data: dadosMensais } = trpc.financial.getDadosMensais.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
@@ -181,6 +186,34 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Gráfico Mensal de Progresso */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Evolução Mensal</CardTitle>
+            <CardDescription>Comparativo de receitas, despesas e resultado por mês</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {dadosMensais && dadosMensais.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={dadosMensais}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mesNome" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
+                  <YAxis tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Legend />
+                  <Line type="monotone" dataKey="receitas" stroke="#10b981" name="Receitas" strokeWidth={2} />
+                  <Line type="monotone" dataKey="despesas" stroke="#ef4444" name="Despesas" strokeWidth={2} />
+                  <Line type="monotone" dataKey="resultado" stroke="#3b82f6" name="Resultado" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                Sem dados disponíveis
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Gráficos */}
         <div className="grid gap-6 md:grid-cols-2 mb-8">

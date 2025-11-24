@@ -174,9 +174,9 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
     const data = XLSX.utils.sheet_to_json(sheet) as any[];
 
     for (const row of data) {
-      const dataLancamento = parseExcelDate(row["DTLANC"]);
+      const dataLancamento = parseExcelDate(row["DTEMISSAO"]);
       const dataVencimento = parseExcelDate(row["DTVENC"]);
-      const dataRecebimento = parseExcelDate(row["DTRECEB"]);
+      const dataRecebimento = parseExcelDate(row["DTPAG"]);
 
       result.contasAReceber.push({
         uploadId,
@@ -189,13 +189,13 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         receitaAnalitico: row["Receita Analítico"] ? String(row["Receita Analítico"]) : null,
         descricaoReceitaAnalitica: row["Descrição Receita Analítica"] || null,
         dataLancamento,
-        cliente: row["CLIENTE"] || null,
+        cliente: row["NOME"] || null,
         historico: row["HISTORICO"] || null,
         tipoDocumento: row["TIPO DE DOCUMENTO"] || null,
         numNota: row["NUMNOTA"] ? String(row["NUMNOTA"]) : null,
         valor: toCents(row["VALOR"]),
         dataVencimento,
-        valorRecebido: toCents(row["VALOR RECEBIDO"]),
+        valorRecebido: toCents(row["VPAGO"]),
         dataRecebimento,
         mes: row["MÊS"] ? Number(row["MÊS"]) : getMonth(dataLancamento),
         numBanco: row["NUMBANCO"] ? String(row["NUMBANCO"]) : null,

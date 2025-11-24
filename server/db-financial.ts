@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, asc } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   uploads,
@@ -360,4 +360,72 @@ export async function getDashboardSummary(uploadId: number) {
     folha,
     saldos,
   };
+}
+
+// ===== DADOS MENSAIS =====
+
+export async function getDadosMensais(uploadId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Buscar receitas por mês
+  const receitasPorMes = await db
+    .select({
+      mes: contasAReceber.mes,
+      totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(contasAReceber)
+    .where(eq(contasAReceber.uploadId, uploadId))
+    .groupBy(contasAReceber.mes)
+    .orderBy(asc(contasAReceber.mes));
+
+  // Buscar despesas por mês
+  const despesasPorMes = await db
+    .select({
+      mes: contasAPagar.mes,
+      totalValor: sql<number>`COALESCE(SUM(${contasAPagar.valor}), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(contasAPagar)
+    .where(eq(contasAPagar.uploadId, uploadId))
+    .groupBy(contasAPagar.mes)
+    .orderBy(asc(contasAPagar.mes));
+
+  // Combinar dados de receitas e despesas por mês
+  const meses = new Set([
+    ...receitasPorMes.map(r => r.mes).filter(m => m !== null),
+    ...despesasPorMes.map(d => d.mes).filter(m => m !== null),
+  ]);
+
+  const dadosMensais = Array.from(meses).sort((a, b) => a! - b!).map(mes => {
+    const receita = receitasPorMes.find(r => r.mes === mes);
+    const despesa = despesasPorMes.find(d => d.mes === mes);
+
+    const totalReceitas = Number(receita?.totalRecebido || 0);
+    const totalDespesas = Number(despesa?.totalPago || 0);
+    const resultado = totalReceitas - totalDespesas;
+
+    return {
+      mes,
+      mesNome: getMesNome(mes!),
+      receitas: totalReceitas,
+      despesas: totalDespesas,
+      resultado,
+      receitasRegistros: Number(receita?.totalRegistros || 0),
+      despesasRegistros: Number(despesa?.totalRegistros || 0),
+    };
+  });
+
+  return dadosMensais;
+}
+
+function getMesNome(mes: number): string {
+  const meses = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+  return meses[mes - 1] || `Mês ${mes}`;
 }

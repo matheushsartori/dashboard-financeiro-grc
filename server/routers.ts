@@ -93,6 +93,14 @@ export const appRouter = router({
         return getDashboardSummary(input.uploadId);
       }),
 
+    // Obter dados mensais
+    getDadosMensais: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDadosMensais } = await import("./db-financial");
+        return getDadosMensais(input.uploadId);
+      }),
+
     // Obter contas a pagar
     getContasAPagar: protectedProcedure
       .input(z.object({ uploadId: z.number() }))
