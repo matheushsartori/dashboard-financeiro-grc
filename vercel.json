@@ -1,7 +1,7 @@
 {
-  "buildCommand": "pnpm run build",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "pnpm install",
+  "installCommand": "npm install --legacy-peer-deps",
   "framework": null,
-  "devCommand": "pnpm run dev"
+  "devCommand": "npm run dev"
 }
