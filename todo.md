@@ -111,8 +111,8 @@
 
 
 ### Deploy e Banco de Dados
-- [ ] Atualizar DATABASE_URL para o PostgreSQL fornecido
-- [ ] Aplicar migrations no novo banco de dados
-- [ ] Fazer commit das alterações
-- [ ] Push para o GitHub
-- [ ] Validar conexão com o banco de dados
+- [x] Atualizar DATABASE_URL para o PostgreSQL fornecido
+- [x] Aplicar migrations no novo banco de dados
+- [x] Fazer commit das alterações
+- [x] Push para o GitHub
+- [x] Validar conexão com o banco de dados
