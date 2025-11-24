@@ -103,10 +103,10 @@
 - [ ] Validar que múltiplas importações funcionam corretamente
 
 
-### Correções de UI e Autenticação
+### Correções de UI e Acesso
 - [x] Corrigir nomes do menu lateral (Dashboard, Receitas, Despesas, Folha, Importação)
-- [x] Remover autenticação Manus e implementar acesso direto
-- [x] Remover "Made with Manus" do rodapé
+- [x] Remover autenticação externa e implementar acesso direto
+- [x] Remover mensagens externas do rodapé
 - [x] Ajustar ícones do menu para corresponder às funcionalidades
 
 

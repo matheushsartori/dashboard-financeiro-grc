@@ -1,16 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownRight, Loader2 } from "lucide-react";
+import { ArrowDownRight, Loader2, TrendingDown } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { DataTable } from "@/components/DataTable";
+import { MonthFilter } from "@/components/MonthFilter";
+import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
+import { Badge } from "@/components/ui/badge";
 
 function formatCurrency(cents: number | null | undefined): string {
-  if (!cents) return "R$ 0,00";
+  if (!cents || cents === 0) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -25,6 +26,7 @@ function formatDate(date: Date | null | undefined): string {
 export default function Despesas() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   const { data: uploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -42,6 +44,33 @@ export default function Despesas() {
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
+
+  // Buscar despesas por fornecedor
+  const { data: despesasPorFornecedor, isLoading: loadingDespesasPorFornecedor } = trpc.financial.getDespesasPorFornecedor.useQuery(
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { enabled: !!latestUpload }
+  );
+
+  // Filtrar despesas por mês se selecionado
+  const filteredDespesas = useMemo(() => {
+    if (!despesas) return [];
+    if (!selectedMonth) return despesas;
+    return despesas.filter(d => d.mes === selectedMonth);
+  }, [despesas, selectedMonth]);
+
+  // Calcular totais filtrados
+  const filteredSummary = useMemo(() => {
+    if (!filteredDespesas.length) return { totalValor: 0, totalPago: 0, totalRegistros: 0 };
+    
+    const totalValor = filteredDespesas.reduce((sum, d) => sum + (d.valor || 0), 0);
+    const totalPago = filteredDespesas.reduce((sum, d) => sum + (d.valorPago || 0), 0);
+    
+    return {
+      totalValor,
+      totalPago,
+      totalRegistros: filteredDespesas.length,
+    };
+  }, [filteredDespesas]);
 
   if (!latestUpload) {
     return (
@@ -88,18 +117,32 @@ export default function Despesas() {
       valor: item.totalPago / 100,
     })) || [];
 
+  const totalValor = summary?.summary?.totalValor || 0;
+  const totalPago = summary?.summary?.totalPago || 0;
+
   return (
     <DashboardLayout>
       <div className="container max-w-7xl py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Despesas</h1>
-          <p className="text-muted-foreground">
-            Análise detalhada de contas a pagar
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Despesas</h1>
+            <p className="text-muted-foreground">
+              Análise detalhada de contas a pagar
+            </p>
+          </div>
+          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
         </div>
 
+        {selectedMonth && (
+          <div className="mb-4">
+            <Badge variant="outline" className="text-sm">
+              Visualizando dados do mês {selectedMonth}
+            </Badge>
+          </div>
+        )}
+
         {/* Cards de Resumo */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
@@ -107,10 +150,10 @@ export default function Despesas() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(summary?.summary?.totalValor)}
+                {formatCurrency(selectedMonth ? filteredSummary.totalValor : totalValor)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Valor original
+                Valor original {selectedMonth ? "do mês" : "geral"}
               </p>
             </CardContent>
           </Card>
@@ -118,14 +161,34 @@ export default function Despesas() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">
-                {formatCurrency(summary?.summary?.totalPago)}
+              <div className="text-2xl font-bold text-red-600">
+                {formatCurrency(selectedMonth ? filteredSummary.totalPago : totalPago)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Valor efetivamente pago
+                Valor efetivamente pago {selectedMonth ? "do mês" : "geral"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Taxa de Pagamento</CardTitle>
+              <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {(() => {
+                  const valor = selectedMonth ? filteredSummary.totalValor : totalValor;
+                  const pago = selectedMonth ? filteredSummary.totalPago : totalPago;
+                  if (!valor) return "0%";
+                  return `${((pago / valor) * 100).toFixed(1)}%`;
+                })()}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Percentual pago
               </p>
             </CardContent>
           </Card>
@@ -137,10 +200,10 @@ export default function Despesas() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {summary?.summary?.totalRegistros || 0}
+                {selectedMonth ? filteredSummary.totalRegistros : (summary?.summary?.totalRegistros || 0)}
               </div>
               <p className="text-xs text-muted-foreground">
-                Contas a pagar
+                Contas a pagar {selectedMonth ? "do mês" : "geral"}
               </p>
             </CardContent>
           </Card>
@@ -156,27 +219,34 @@ export default function Despesas() {
             </CardHeader>
             <CardContent>
               {despesasCategoriaChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
                       data={despesasCategoriaChart}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name.substring(0, 15)}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
+                      label={({ name, percent }) => {
+                        const shortName = name.length > 15 ? name.substring(0, 15) + "..." : name;
+                        return `${shortName}: ${(percent * 100).toFixed(0)}%`;
+                      }}
+                      outerRadius={100}
                       fill="#8884d8"
                       dataKey="value"
                     >
                       {despesasCategoriaChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -191,17 +261,35 @@ export default function Despesas() {
             </CardHeader>
             <CardContent>
               {despesasCentroCustoChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={350}>
                   <BarChart data={despesasCentroCustoChart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                    <Bar dataKey="valor" fill="#f59e0b" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      tick={{ fontSize: 11 }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Bar 
+                      dataKey="valor" 
+                      fill={SERIES_COLORS.warning}
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -213,17 +301,35 @@ export default function Despesas() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Top 10 Fornecedores</CardTitle>
-            <CardDescription>Fornecedores com maior valor pago</CardDescription>
+            <CardDescription>Fornecedores com maior valor pago {selectedMonth ? `no mês ${selectedMonth}` : "geral"}</CardDescription>
           </CardHeader>
           <CardContent>
             {topFornecedoresChart.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={topFornecedoresChart} layout="horizontal">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                  <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                  <Bar dataKey="valor" fill="#3b82f6" />
+                <BarChart data={topFornecedoresChart} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    type="number" 
+                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={11}
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    width={150} 
+                    tick={{ fontSize: 11 }}
+                    stroke="#6b7280"
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value * 100)}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                  />
+                  <Bar 
+                    dataKey="valor" 
+                    fill={SERIES_COLORS.despesas}
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -234,59 +340,152 @@ export default function Despesas() {
           </CardContent>
         </Card>
 
+        {/* Tabela de Despesas por Fornecedor */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Despesas por Fornecedor</CardTitle>
+            <CardDescription>
+              Resumo de despesas agrupadas por fornecedor {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingDespesasPorFornecedor ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : despesasPorFornecedor && despesasPorFornecedor.length > 0 ? (
+              <DataTable
+                data={despesasPorFornecedor}
+                columns={[
+                  {
+                    key: "fornecedor",
+                    label: "Fornecedor",
+                    render: (value) => <span className="font-medium">{value || "-"}</span>,
+                  },
+                  {
+                    key: "quantidadePagamentos",
+                    label: "Qtd. Pagamentos",
+                    render: (value) => <span className="text-center">{value || 0}</span>,
+                    className: "text-center",
+                  },
+                  {
+                    key: "totalPagamentos",
+                    label: "Total de Pagamentos",
+                    render: (value) => (
+                      <span className="text-red-600 font-semibold">
+                        {formatCurrency(value)}
+                      </span>
+                    ),
+                    className: "text-right",
+                  },
+                  {
+                    key: "mediaPagamentos",
+                    label: "Média de Pagamentos",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "ultimoPagamento",
+                    label: "Último Pagamento",
+                    render: (value) => (
+                      <span className={value ? "" : "text-muted-foreground"}>
+                        {value ? formatDate(value) : "N/A"}
+                      </span>
+                    ),
+                  },
+                ]}
+                searchable={true}
+                searchPlaceholder="Buscar por fornecedor..."
+                searchKeys={["fornecedor"]}
+                pageSize={15}
+                emptyMessage="Nenhuma despesa por fornecedor encontrada"
+                onRowClick={(row) => {
+                  const fornecedor = encodeURIComponent(row.fornecedor);
+                  window.location.href = `/despesas/fornecedor?fornecedor=${fornecedor}&uploadId=${latestUpload}${selectedMonth ? `&mes=${selectedMonth}` : ""}`;
+                }}
+              />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhuma despesa por fornecedor encontrada
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Tabela de Despesas */}
         <Card>
           <CardHeader>
             <CardTitle>Detalhamento de Despesas</CardTitle>
-            <CardDescription>Lista completa de contas a pagar</CardDescription>
+            <CardDescription>
+              Lista completa de contas a pagar {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loadingDespesas ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : despesas && despesas.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Data Lançamento</TableHead>
-                      <TableHead>Data Vencimento</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead>Valor Pago</TableHead>
-                      <TableHead>Data Pagamento</TableHead>
-                      <TableHead>Histórico</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {despesas.slice(0, 50).map((despesa) => (
-                      <TableRow key={despesa.id}>
-                        <TableCell className="font-medium">{despesa.fornecedor || "-"}</TableCell>
-                        <TableCell>{formatDate(despesa.dataLancamento)}</TableCell>
-                        <TableCell>{formatDate(despesa.dataVencimento)}</TableCell>
-                        <TableCell>{formatCurrency(despesa.valor)}</TableCell>
-                        <TableCell className="text-red-600 font-medium">
-                          {formatCurrency(despesa.valorPago)}
-                        </TableCell>
-                        <TableCell>{formatDate(despesa.dataPagamento)}</TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {despesa.historico || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {despesas.length > 50 && (
-                  <p className="text-sm text-muted-foreground mt-4 text-center">
-                    Mostrando 50 de {despesas.length} registros
-                  </p>
-                )}
-              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhuma despesa encontrada
-              </div>
+              <DataTable
+                data={filteredDespesas}
+                columns={[
+                  {
+                    key: "fornecedor",
+                    label: "Fornecedor",
+                    render: (value) => <span className="font-medium">{value || "-"}</span>,
+                  },
+                  {
+                    key: "dataLancamento",
+                    label: "Data Lançamento",
+                    render: (value) => formatDate(value),
+                  },
+                  {
+                    key: "dataVencimento",
+                    label: "Data Vencimento",
+                    render: (value) => formatDate(value),
+                  },
+                  {
+                    key: "valor",
+                    label: "Valor",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "valorPago",
+                    label: "Valor Pago",
+                    render: (value) => (
+                      <span className="text-red-600 font-semibold">
+                        {formatCurrency(value)}
+                      </span>
+                    ),
+                    className: "text-right",
+                  },
+                  {
+                    key: "dataPagamento",
+                    label: "Data Pagamento",
+                    render: (value) => formatDate(value),
+                  },
+                  {
+                    key: "mes",
+                    label: "Mês",
+                    render: (value) => value ? `Mês ${value}` : "-",
+                  },
+                  {
+                    key: "historico",
+                    label: "Histórico",
+                    render: (value) => (
+                      <span className="max-w-xs truncate block" title={value || ""}>
+                        {value || "-"}
+                      </span>
+                    ),
+                  },
+                ]}
+                searchable={true}
+                searchPlaceholder="Buscar por fornecedor, histórico..."
+                searchKeys={["fornecedor", "historico"]}
+                pageSize={15}
+                emptyMessage="Nenhuma despesa encontrada"
+              />
             )}
           </CardContent>
         </Card>

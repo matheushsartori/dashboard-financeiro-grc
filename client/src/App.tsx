@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Receitas = lazy(() => import("./pages/Receitas"));
+const ReceitasEmpresa = lazy(() => import("./pages/ReceitasEmpresa"));
 const Despesas = lazy(() => import("./pages/Despesas"));
 const DRE = lazy(() => import("./pages/DRE"));
 const Folha = lazy(() => import("./pages/Folha"));
@@ -27,6 +28,7 @@ function Router() {
         <Route path={"/"} component={Home} />
         <Route path={"/dashboard"} component={Dashboard} />
         <Route path={"/receitas"} component={Receitas} />
+        <Route path={"/receitas/empresa"} component={ReceitasEmpresa} />
         <Route path={"/despesas"} component={Despesas} />
         <Route path={"/dre"} component={DRE} />
         <Route path={"/folha"} component={Folha} />

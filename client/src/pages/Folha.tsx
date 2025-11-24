@@ -1,16 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { DataTable } from "@/components/DataTable";
+import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
 
 function formatCurrency(cents: number | null | undefined): string {
-  if (!cents) return "R$ 0,00";
+  if (!cents || cents === 0) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -86,7 +85,11 @@ export default function Folha() {
     return Array.from(funcionarioMap.entries())
       .map(([nome, total]) => ({ nome, total }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
+      .slice(0, 10)
+      .map(item => ({
+        name: item.nome,
+        valor: item.total / 100,
+      }));
   }, [folha]);
 
   return (
@@ -100,17 +103,17 @@ export default function Folha() {
         </div>
 
         {/* Cards de Resumo */}
-        <div className="grid gap-4 md:grid-cols-2 mb-8">
+        <div className="grid gap-4 md:grid-cols-3 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Custo Total da Folha</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-amber-600">
                 {formatCurrency(summary?.summary?.totalFolha)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Total de custos com pessoal
               </p>
             </CardContent>
@@ -125,8 +128,28 @@ export default function Folha() {
               <div className="text-2xl font-bold">
                 {summary?.summary?.totalFuncionarios || 0}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Funcionários únicos
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Custo Médio por Funcionário</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {(() => {
+                  const total = summary?.summary?.totalFolha || 0;
+                  const funcionarios = summary?.summary?.totalFuncionarios || 0;
+                  if (!funcionarios) return formatCurrency(0);
+                  return formatCurrency(Math.round(total / funcionarios));
+                })()}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Média por funcionário
               </p>
             </CardContent>
           </Card>
@@ -142,27 +165,34 @@ export default function Folha() {
             </CardHeader>
             <CardContent>
               {custoPorAreaChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
                       data={custoPorAreaChart}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name.substring(0, 20)}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
+                      label={({ name, percent }) => {
+                        const shortName = name.length > 20 ? name.substring(0, 20) + "..." : name;
+                        return `${shortName}: ${(percent * 100).toFixed(0)}%`;
+                      }}
+                      outerRadius={100}
                       fill="#8884d8"
                       dataKey="value"
                     >
                       {custoPorAreaChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -177,17 +207,35 @@ export default function Folha() {
             </CardHeader>
             <CardContent>
               {custoPorFuncionario.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={custoPorFuncionario} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 100 / 1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="nome" width={120} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                    <Bar dataKey="total" fill="#8b5cf6" />
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={custoPorFuncionario} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      type="number" 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      width={120} 
+                      tick={{ fontSize: 11 }}
+                      stroke="#6b7280"
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Bar 
+                      dataKey="valor" 
+                      fill={SERIES_COLORS.folha}
+                      radius={[0, 4, 4, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -206,54 +254,94 @@ export default function Folha() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : folha && folha.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Área</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Mês 1</TableHead>
-                      <TableHead>Mês 2</TableHead>
-                      <TableHead>Mês 3</TableHead>
-                      <TableHead>Mês 4</TableHead>
-                      <TableHead>Mês 5</TableHead>
-                      <TableHead>Mês 6</TableHead>
-                      <TableHead>Mês 7</TableHead>
-                      <TableHead>Mês 8</TableHead>
-                      <TableHead className="font-bold">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {folha.slice(0, 50).map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.nome}</TableCell>
-                        <TableCell>{item.area || "-"}</TableCell>
-                        <TableCell className="text-xs">{item.tipoPagamento || "-"}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes1)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes2)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes3)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes4)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes5)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes6)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes7)}</TableCell>
-                        <TableCell className="text-xs">{formatCurrency(item.mes8)}</TableCell>
-                        <TableCell className="font-bold">{formatCurrency(item.total)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {folha.length > 50 && (
-                  <p className="text-sm text-muted-foreground mt-4 text-center">
-                    Mostrando 50 de {folha.length} registros
-                  </p>
-                )}
-              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum dado de folha encontrado
-              </div>
+              <DataTable
+                data={folha || []}
+                columns={[
+                  {
+                    key: "nome",
+                    label: "Nome",
+                    render: (value) => <span className="font-medium">{value || "-"}</span>,
+                  },
+                  {
+                    key: "area",
+                    label: "Área",
+                    render: (value) => value || "-",
+                  },
+                  {
+                    key: "tipoPagamento",
+                    label: "Tipo",
+                    render: (value) => (
+                      <span className="text-xs px-2 py-1 bg-muted rounded">
+                        {value || "-"}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: "mes1",
+                    label: "Mês 1",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes2",
+                    label: "Mês 2",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes3",
+                    label: "Mês 3",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes4",
+                    label: "Mês 4",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes5",
+                    label: "Mês 5",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes6",
+                    label: "Mês 6",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes7",
+                    label: "Mês 7",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "mes8",
+                    label: "Mês 8",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right text-xs",
+                  },
+                  {
+                    key: "total",
+                    label: "Total",
+                    render: (value) => (
+                      <span className="font-bold text-amber-600">
+                        {formatCurrency(value)}
+                      </span>
+                    ),
+                    className: "text-right font-bold",
+                  },
+                ]}
+                searchable={true}
+                searchPlaceholder="Buscar por nome, área..."
+                searchKeys={["nome", "area", "tipoPagamento"]}
+                pageSize={15}
+                emptyMessage="Nenhum dado de folha encontrado"
+              />
             )}
           </CardContent>
         </Card>

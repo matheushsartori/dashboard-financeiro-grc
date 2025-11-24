@@ -1,15 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2 } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+import { MonthFilter } from "@/components/MonthFilter";
+import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
+import { Badge } from "@/components/ui/badge";
 
 function formatCurrency(cents: number | null | undefined): string {
-  if (!cents) return "R$ 0,00";
+  if (!cents || cents === 0) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -19,6 +20,7 @@ function formatCurrency(cents: number | null | undefined): string {
 export default function Dashboard() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   const { data: uploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -46,6 +48,13 @@ export default function Dashboard() {
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
+
+  // Filtrar dados mensais se mês selecionado
+  const filteredDadosMensais = useMemo(() => {
+    if (!dadosMensais) return [];
+    if (!selectedMonth) return dadosMensais;
+    return dadosMensais.filter(d => d.mes === selectedMonth);
+  }, [dadosMensais, selectedMonth]);
 
   if (!latestUpload) {
     return (
@@ -81,7 +90,11 @@ export default function Dashboard() {
     );
   }
 
-  const totalReceitas = summary?.contasReceber?.totalRecebido || 0;
+  // CORRIGIDO: Usar totalValor se totalRecebido for 0 ou null
+  const totalReceitasValor = summary?.contasReceber?.totalValor || 0;
+  const totalReceitasRecebido = summary?.contasReceber?.totalRecebido || 0;
+  const totalReceitas = totalReceitasRecebido > 0 ? totalReceitasRecebido : totalReceitasValor;
+  
   const totalDespesas = summary?.contasPagar?.totalPago || 0;
   const totalFolha = summary?.folha?.totalFolha || 0;
   const saldoBancario = summary?.saldos?.totalSaldo || 0;
@@ -107,36 +120,47 @@ export default function Dashboard() {
 
   // Dados para gráfico de barras de top clientes
   const topClientesChart = contasReceberData?.topClientes
-    ?.filter((item) => item.cliente && item.totalRecebido > 0)
+    ?.filter((item) => item.cliente && (item.totalRecebido > 0 || item.totalRecebido === null))
     .slice(0, 10)
     .map((item) => ({
       name: item.cliente || "Sem nome",
-      valor: item.totalRecebido / 100,
+      valor: (item.totalRecebido || 0) / 100,
     })) || [];
 
   return (
     <DashboardLayout>
       <div className="container max-w-7xl py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Dashboard Financeiro</h1>
-          <p className="text-muted-foreground">
-            Visão geral dos dados financeiros importados
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Dashboard Financeiro</h1>
+            <p className="text-muted-foreground">
+              Visão geral dos dados financeiros importados
+            </p>
+          </div>
+          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
         </div>
+
+        {selectedMonth && (
+          <div className="mb-4">
+            <Badge variant="outline" className="text-sm">
+              Visualizando dados do mês {selectedMonth}
+            </Badge>
+          </div>
+        )}
 
         {/* Cards de Resumo */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Receitas</CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">
+              <div className="text-2xl font-bold text-green-600">
                 {formatCurrency(totalReceitas)}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Total recebido
+              <p className="text-xs text-muted-foreground mt-1">
+                {totalReceitasRecebido > 0 ? "Total recebido" : "Total a receber"}
               </p>
             </CardContent>
           </Card>
@@ -144,13 +168,13 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Despesas</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-red-500" />
+              <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">
+              <div className="text-2xl font-bold text-red-600">
                 {formatCurrency(totalDespesas)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Total pago
               </p>
             </CardContent>
@@ -159,13 +183,13 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Folha de Pagamento</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-amber-600">
                 {formatCurrency(totalFolha)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 {summary?.folha?.totalFuncionarios || 0} funcionários
               </p>
             </CardContent>
@@ -174,13 +198,17 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Resultado</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              {resultado >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${resultado >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <div className={`text-2xl font-bold ${resultado >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(resultado)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Receitas - Despesas - Folha
               </p>
             </CardContent>
@@ -191,24 +219,61 @@ export default function Dashboard() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Evolução Mensal</CardTitle>
-            <CardDescription>Comparativo de receitas, despesas e resultado por mês</CardDescription>
+            <CardDescription>
+              Comparativo de receitas, despesas e resultado por mês {selectedMonth ? `(filtrado: mês ${selectedMonth})` : ""}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {dadosMensais && dadosMensais.length > 0 ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <LineChart data={dadosMensais}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mesNome" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+            {filteredDadosMensais && filteredDadosMensais.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={filteredDadosMensais} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="mesNome" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80} 
+                    tick={{ fontSize: 11 }}
+                    stroke="#6b7280"
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={11}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="receitas" stroke="#10b981" name="Receitas" strokeWidth={2} />
-                  <Line type="monotone" dataKey="despesas" stroke="#ef4444" name="Despesas" strokeWidth={2} />
-                  <Line type="monotone" dataKey="resultado" stroke="#3b82f6" name="Resultado" strokeWidth={2} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="receitas" 
+                    stroke={SERIES_COLORS.receitas} 
+                    name="Receitas" 
+                    strokeWidth={3}
+                    dot={{ fill: SERIES_COLORS.receitas, r: 4 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="despesas" 
+                    stroke={SERIES_COLORS.despesas} 
+                    name="Despesas" 
+                    strokeWidth={3}
+                    dot={{ fill: SERIES_COLORS.despesas, r: 4 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="resultado" 
+                    stroke={SERIES_COLORS.resultado} 
+                    name="Resultado" 
+                    strokeWidth={3}
+                    dot={{ fill: SERIES_COLORS.resultado, r: 4 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
                 Sem dados disponíveis
               </div>
             )}
@@ -225,27 +290,34 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {despesasCategoriaChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
                       data={despesasCategoriaChart}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name.substring(0, 20)}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
+                      label={({ name, percent }) => {
+                        const shortName = name.length > 15 ? name.substring(0, 15) + "..." : name;
+                        return `${shortName}: ${(percent * 100).toFixed(0)}%`;
+                      }}
+                      outerRadius={100}
                       fill="#8884d8"
                       dataKey="value"
                     >
                       {despesasCategoriaChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -260,17 +332,35 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {topFornecedoresChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={topFornecedoresChart} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                    <Bar dataKey="valor" fill="#3b82f6" />
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={topFornecedoresChart} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis 
+                      type="number" 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                    />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      width={120} 
+                      tick={{ fontSize: 11 }}
+                      stroke="#6b7280"
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                    />
+                    <Bar 
+                      dataKey="valor" 
+                      fill={SERIES_COLORS.despesas}
+                      radius={[0, 4, 4, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                   Sem dados disponíveis
                 </div>
               )}
@@ -286,17 +376,35 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             {topClientesChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={topClientesChart}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                  <Bar dataKey="valor" fill="#10b981" />
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={topClientesChart} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    type="number" 
+                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={11}
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    width={150} 
+                    tick={{ fontSize: 11 }}
+                    stroke="#6b7280"
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value * 100)}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                  />
+                  <Bar 
+                    dataKey="valor" 
+                    fill={SERIES_COLORS.receitas}
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
                 Sem dados disponíveis
               </div>
             )}

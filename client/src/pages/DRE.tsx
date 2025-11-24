@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +6,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
+import { MonthFilter } from "@/components/MonthFilter";
+import { SERIES_COLORS } from "@/lib/chartColors";
+import { Badge } from "@/components/ui/badge";
 
 function formatCurrency(cents: number | null | undefined): string {
-  if (!cents) return "R$ 0,00";
+  if (!cents || cents === 0) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -18,6 +21,7 @@ function formatCurrency(cents: number | null | undefined): string {
 export default function DRE() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   const { data: uploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -35,6 +39,13 @@ export default function DRE() {
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
+
+  // Filtrar dados mensais se mês selecionado
+  const filteredDadosMensais = useMemo(() => {
+    if (!dadosMensais) return [];
+    if (!selectedMonth) return dadosMensais;
+    return dadosMensais.filter(d => d.mes === selectedMonth);
+  }, [dadosMensais, selectedMonth]);
 
   if (!latestUpload) {
     return (
@@ -69,7 +80,11 @@ export default function DRE() {
     );
   }
 
-  const totalReceitas = summary?.contasReceber?.totalRecebido || 0;
+  // CORRIGIDO: Usar totalValor se totalRecebido for 0 ou null
+  const totalReceitasValor = summary?.contasReceber?.totalValor || 0;
+  const totalReceitasRecebido = summary?.contasReceber?.totalRecebido || 0;
+  const totalReceitas = totalReceitasRecebido > 0 ? totalReceitasRecebido : totalReceitasValor;
+  
   const totalDespesas = summary?.contasPagar?.totalPago || 0;
   const totalFolha = summary?.folha?.totalFolha || 0;
   const lucroOperacional = totalReceitas - totalDespesas;
@@ -82,34 +97,45 @@ export default function DRE() {
     {
       categoria: "Receitas",
       valor: totalReceitas / 100,
-      cor: "#10b981",
+      cor: SERIES_COLORS.receitas,
     },
     {
       categoria: "Despesas",
       valor: (totalDespesas / 100) * -1,
-      cor: "#ef4444",
+      cor: SERIES_COLORS.despesas,
     },
     {
       categoria: "Folha",
       valor: (totalFolha / 100) * -1,
-      cor: "#f59e0b",
+      cor: SERIES_COLORS.folha,
     },
     {
       categoria: "Resultado",
       valor: lucroLiquido / 100,
-      cor: lucroLiquido >= 0 ? "#3b82f6" : "#dc2626",
+      cor: lucroLiquido >= 0 ? SERIES_COLORS.resultado : SERIES_COLORS.danger,
     },
   ];
 
   return (
     <DashboardLayout>
       <div className="container max-w-7xl py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">DRE - Demonstração do Resultado do Exercício</h1>
-          <p className="text-muted-foreground">
-            Análise completa do resultado financeiro
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">DRE - Demonstração do Resultado do Exercício</h1>
+            <p className="text-muted-foreground">
+              Análise completa do resultado financeiro
+            </p>
+          </div>
+          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
         </div>
+
+        {selectedMonth && (
+          <div className="mb-4">
+            <Badge variant="outline" className="text-sm">
+              Visualizando dados do mês {selectedMonth}
+            </Badge>
+          </div>
+        )}
 
         {/* Cards de Resumo */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
@@ -119,11 +145,11 @@ export default function DRE() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">
+              <div className="text-2xl font-bold text-green-600">
                 {formatCurrency(totalReceitas)}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Receitas operacionais
+              <p className="text-xs text-muted-foreground mt-1">
+                Receitas operacionais {selectedMonth ? `(mês ${selectedMonth})` : "(geral)"}
               </p>
             </CardContent>
           </Card>
@@ -134,10 +160,10 @@ export default function DRE() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${lucroOperacional >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <div className={`text-2xl font-bold ${lucroOperacional >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(lucroOperacional)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Margem: {margemOperacional.toFixed(1)}%
               </p>
             </CardContent>
@@ -153,10 +179,10 @@ export default function DRE() {
               )}
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${lucroLiquido >= 0 ? "text-green-500" : "text-red-500"}`}>
+              <div className={`text-2xl font-bold ${lucroLiquido >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(lucroLiquido)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Margem: {margemLiquida.toFixed(1)}%
               </p>
             </CardContent>
@@ -168,10 +194,10 @@ export default function DRE() {
               <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">
+              <div className="text-2xl font-bold text-red-600">
                 {formatCurrency(totalDespesas + totalFolha)}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 Despesas + Folha
               </p>
             </CardContent>
@@ -182,16 +208,29 @@ export default function DRE() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Estrutura do DRE</CardTitle>
-            <CardDescription>Composição do resultado financeiro</CardDescription>
+            <CardDescription>
+              Composição do resultado financeiro {selectedMonth ? `(mês ${selectedMonth})` : "(geral)"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={dreData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="categoria" />
-                <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                <Bar dataKey="valor" fill="#8884d8">
+            <ResponsiveContainer width="100%" height={450}>
+              <BarChart data={dreData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="categoria" 
+                  stroke="#6b7280"
+                  fontSize={12}
+                />
+                <YAxis 
+                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  stroke="#6b7280"
+                  fontSize={11}
+                />
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value * 100)}
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                />
+                <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
                   {dreData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.cor} />
                   ))}
@@ -205,88 +244,123 @@ export default function DRE() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>DRE Detalhado</CardTitle>
-            <CardDescription>Demonstração completa do resultado</CardDescription>
+            <CardDescription>
+              Demonstração completa do resultado {selectedMonth ? `(mês ${selectedMonth})` : "(geral)"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[60%]">Descrição</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="text-right">% Receita</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className="font-bold bg-green-50">
-                  <TableCell>RECEITA OPERACIONAL BRUTA</TableCell>
-                  <TableCell className="text-right text-green-600">
-                    {formatCurrency(totalReceitas)}
-                  </TableCell>
-                  <TableCell className="text-right">100,0%</TableCell>
-                </TableRow>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60%] font-semibold">Descrição</TableHead>
+                    <TableHead className="text-right font-semibold">Valor</TableHead>
+                    <TableHead className="text-right font-semibold">% Receita</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="font-bold bg-green-50 dark:bg-green-950/20">
+                    <TableCell className="font-bold text-base">RECEITA OPERACIONAL BRUTA</TableCell>
+                    <TableCell className="text-right text-green-600 font-bold text-base">
+                      {formatCurrency(totalReceitas)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">100,0%</TableCell>
+                  </TableRow>
 
-                <TableRow className="font-semibold">
-                  <TableCell className="pl-8">(-) Despesas Operacionais</TableCell>
-                  <TableCell className="text-right text-red-600">
-                    ({formatCurrency(totalDespesas)})
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {totalReceitas > 0 ? ((totalDespesas / totalReceitas) * 100).toFixed(1) : "0,0"}%
-                  </TableCell>
-                </TableRow>
+                  <TableRow className="font-semibold">
+                    <TableCell className="pl-8">(-) Despesas Operacionais</TableCell>
+                    <TableCell className="text-right text-red-600 font-semibold">
+                      ({formatCurrency(totalDespesas)})
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {totalReceitas > 0 ? ((totalDespesas / totalReceitas) * 100).toFixed(1) : "0,0"}%
+                    </TableCell>
+                  </TableRow>
 
-                <TableRow className="font-bold bg-blue-50">
-                  <TableCell>= LUCRO OPERACIONAL</TableCell>
-                  <TableCell className={`text-right ${lucroOperacional >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                    {formatCurrency(lucroOperacional)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {margemOperacional.toFixed(1)}%
-                  </TableCell>
-                </TableRow>
+                  <TableRow className="font-bold bg-blue-50 dark:bg-blue-950/20">
+                    <TableCell className="font-bold text-base">= LUCRO OPERACIONAL</TableCell>
+                    <TableCell className={`text-right font-bold text-base ${lucroOperacional >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                      {formatCurrency(lucroOperacional)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {margemOperacional.toFixed(1)}%
+                    </TableCell>
+                  </TableRow>
 
-                <TableRow className="font-semibold">
-                  <TableCell className="pl-8">(-) Folha de Pagamento</TableCell>
-                  <TableCell className="text-right text-red-600">
-                    ({formatCurrency(totalFolha)})
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {totalReceitas > 0 ? ((totalFolha / totalReceitas) * 100).toFixed(1) : "0,0"}%
-                  </TableCell>
-                </TableRow>
+                  <TableRow className="font-semibold">
+                    <TableCell className="pl-8">(-) Folha de Pagamento</TableCell>
+                    <TableCell className="text-right text-red-600 font-semibold">
+                      ({formatCurrency(totalFolha)})
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {totalReceitas > 0 ? ((totalFolha / totalReceitas) * 100).toFixed(1) : "0,0"}%
+                    </TableCell>
+                  </TableRow>
 
-                <TableRow className="font-bold bg-primary/10 text-lg">
-                  <TableCell>= LUCRO LÍQUIDO</TableCell>
-                  <TableCell className={`text-right ${lucroLiquido >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {formatCurrency(lucroLiquido)}
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {margemLiquida.toFixed(1)}%
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                  <TableRow className="font-bold bg-primary/10 text-lg border-t-2 border-primary">
+                    <TableCell className="font-bold text-lg">= LUCRO LÍQUIDO</TableCell>
+                    <TableCell className={`text-right font-bold text-lg ${lucroLiquido >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {formatCurrency(lucroLiquido)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg">
+                      {margemLiquida.toFixed(1)}%
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
         {/* Evolução Mensal do Resultado */}
-        {dadosMensais && dadosMensais.length > 0 && (
+        {filteredDadosMensais && filteredDadosMensais.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Evolução Mensal do Resultado</CardTitle>
-              <CardDescription>Acompanhamento do lucro/prejuízo por mês</CardDescription>
+              <CardDescription>
+                Acompanhamento do lucro/prejuízo por mês {selectedMonth ? `(filtrado: mês ${selectedMonth})` : ""}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={dadosMensais}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mesNome" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={filteredDadosMensais} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="mesNome" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80} 
+                    tick={{ fontSize: 11 }}
+                    stroke="#6b7280"
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={11}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                  />
                   <Legend />
-                  <Bar dataKey="receitas" fill="#10b981" name="Receitas" />
-                  <Bar dataKey="despesas" fill="#ef4444" name="Despesas" />
-                  <Bar dataKey="resultado" fill="#3b82f6" name="Resultado" />
+                  <Bar 
+                    dataKey="receitas" 
+                    fill={SERIES_COLORS.receitas} 
+                    name="Receitas"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="despesas" 
+                    fill={SERIES_COLORS.despesas} 
+                    name="Despesas"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="resultado" 
+                    fill={SERIES_COLORS.resultado} 
+                    name="Resultado"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

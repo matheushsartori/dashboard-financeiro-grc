@@ -150,8 +150,8 @@ export async function getContasAPagarSummary(uploadId: number) {
 
   const result = await db
     .select({
-      totalValor: sql<number>`SUM(${contasAPagar.valor})`,
-      totalPago: sql<number>`SUM(${contasAPagar.valorPago})`,
+      totalValor: sql<number>`COALESCE(SUM(${contasAPagar.valor}), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), 0)`,
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAPagar)
@@ -174,6 +174,58 @@ export async function getTopFornecedores(uploadId: number, limit: number = 10) {
     .groupBy(contasAPagar.fornecedor)
     .orderBy(desc(sql`SUM(${contasAPagar.valorPago})`))
     .limit(limit);
+}
+
+export async function getDespesasPorFornecedor(uploadId: number, mes?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const whereCondition = mes !== null && mes !== undefined
+    ? and(eq(contasAPagar.uploadId, uploadId), eq(contasAPagar.mes, mes))
+    : eq(contasAPagar.uploadId, uploadId);
+
+  const result = await db
+    .select({
+      fornecedor: contasAPagar.fornecedor,
+      quantidadePagamentos: sql<number>`COUNT(*)`,
+      totalPagamentos: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), SUM(${contasAPagar.valor}), 0)`,
+      mediaPagamentos: sql<number>`COALESCE(AVG(${contasAPagar.valorPago}), AVG(${contasAPagar.valor}), 0)`,
+      ultimoPagamento: sql<Date | null>`MAX(${contasAPagar.dataPagamento})`,
+    })
+    .from(contasAPagar)
+    .where(whereCondition)
+    .groupBy(contasAPagar.fornecedor)
+    .orderBy(desc(sql`COALESCE(SUM(${contasAPagar.valorPago}), SUM(${contasAPagar.valor}), 0)`));
+
+  return result.map(r => ({
+    fornecedor: r.fornecedor || "Sem nome",
+    quantidadePagamentos: Number(r.quantidadePagamentos),
+    totalPagamentos: Number(r.totalPagamentos),
+    mediaPagamentos: Number(r.mediaPagamentos),
+    ultimoPagamento: r.ultimoPagamento,
+  }));
+}
+
+export async function getDespesasPorFornecedorDetalhes(uploadId: number, fornecedor: string, mes?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const whereCondition = mes !== null && mes !== undefined
+    ? and(
+        eq(contasAPagar.uploadId, uploadId),
+        eq(contasAPagar.fornecedor, fornecedor),
+        eq(contasAPagar.mes, mes)
+      )
+    : and(
+        eq(contasAPagar.uploadId, uploadId),
+        eq(contasAPagar.fornecedor, fornecedor)
+      );
+
+  return db
+    .select()
+    .from(contasAPagar)
+    .where(whereCondition)
+    .orderBy(desc(contasAPagar.dataPagamento));
 }
 
 export async function getDespesasPorCategoria(uploadId: number) {
@@ -221,25 +273,38 @@ export async function insertContasAReceber(data: InsertContaAReceber[]) {
   }
 }
 
-export async function getContasAReceberByUpload(uploadId: number) {
+export async function getContasAReceberByUpload(uploadId: number, mes?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
+  // Filtrar por mês se fornecido
+  if (mes !== null && mes !== undefined) {
+    return db
+      .select()
+      .from(contasAReceber)
+      .where(and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes)));
+  }
+  
   return db.select().from(contasAReceber).where(eq(contasAReceber.uploadId, uploadId));
 }
 
-export async function getContasAReceberSummary(uploadId: number) {
+export async function getContasAReceberSummary(uploadId: number, mes?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
+  // Filtrar por mês se fornecido
+  const whereCondition = mes !== null && mes !== undefined
+    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
+    : eq(contasAReceber.uploadId, uploadId);
+
   const result = await db
     .select({
-      totalValor: sql<number>`SUM(${contasAReceber.valor})`,
-      totalRecebido: sql<number>`SUM(${contasAReceber.valorRecebido})`,
+      totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
-    .where(eq(contasAReceber.uploadId, uploadId));
+    .where(whereCondition);
 
   return result[0];
 }
@@ -251,13 +316,65 @@ export async function getTopClientes(uploadId: number, limit: number = 10) {
   return db
     .select({
       cliente: contasAReceber.cliente,
-      totalRecebido: sql<number>`SUM(${contasAReceber.valorRecebido})`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`,
     })
     .from(contasAReceber)
     .where(eq(contasAReceber.uploadId, uploadId))
     .groupBy(contasAReceber.cliente)
-    .orderBy(desc(sql`SUM(${contasAReceber.valorRecebido})`))
+    .orderBy(desc(sql`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`))
     .limit(limit);
+}
+
+export async function getReceitasPorEmpresa(uploadId: number, mes?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const whereCondition = mes !== null && mes !== undefined
+    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
+    : eq(contasAReceber.uploadId, uploadId);
+
+  const result = await db
+    .select({
+      cliente: contasAReceber.cliente,
+      quantidadePagamentos: sql<number>`COUNT(*)`,
+      totalPagamentos: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`,
+      mediaPagamentos: sql<number>`COALESCE(AVG(${contasAReceber.valorRecebido}), AVG(${contasAReceber.valor}), 0)`,
+      ultimoPagamento: sql<Date | null>`MAX(${contasAReceber.dataRecebimento})`,
+    })
+    .from(contasAReceber)
+    .where(whereCondition)
+    .groupBy(contasAReceber.cliente)
+    .orderBy(desc(sql`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`));
+
+  return result.map(r => ({
+    cliente: r.cliente || "Sem nome",
+    quantidadePagamentos: Number(r.quantidadePagamentos),
+    totalPagamentos: Number(r.totalPagamentos),
+    mediaPagamentos: Number(r.mediaPagamentos),
+    ultimoPagamento: r.ultimoPagamento,
+  }));
+}
+
+export async function getReceitasPorEmpresaDetalhes(uploadId: number, cliente: string, mes?: number | null) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const whereCondition = mes !== null && mes !== undefined
+    ? and(
+        eq(contasAReceber.uploadId, uploadId),
+        eq(contasAReceber.cliente, cliente),
+        eq(contasAReceber.mes, mes)
+      )
+    : and(
+        eq(contasAReceber.uploadId, uploadId),
+        eq(contasAReceber.cliente, cliente)
+      );
+
+  return db
+    .select()
+    .from(contasAReceber)
+    .where(whereCondition)
+    .orderBy(desc(contasAReceber.dataRecebimento));
 }
 
 // ===== FOLHA DE PAGAMENTO =====
@@ -363,6 +480,33 @@ export async function getDashboardSummary(uploadId: number) {
 }
 
 // ===== DADOS MENSAIS =====
+
+export async function getReceitasMensais(uploadId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const receitasPorMes = await db
+    .select({
+      mes: contasAReceber.mes,
+      totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(contasAReceber)
+    .where(eq(contasAReceber.uploadId, uploadId))
+    .groupBy(contasAReceber.mes)
+    .orderBy(asc(contasAReceber.mes));
+
+  return receitasPorMes
+    .filter(r => r.mes !== null && r.mes !== undefined)
+    .map(r => ({
+      mes: r.mes!,
+      mesNome: getMesNome(r.mes!),
+      totalValor: Number(r.totalValor),
+      totalRecebido: Number(r.totalRecebido),
+      totalRegistros: Number(r.totalRegistros),
+    }));
+}
 
 export async function getDadosMensais(uploadId: number) {
   const db = await getDb();
