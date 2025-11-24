@@ -1,20 +1,7 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
-import { Streamdown } from 'streamdown';
+import { APP_LOGO, APP_TITLE } from "@/const";
 
 export default function Home() {
-  const { user, isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-primary/5">
       {/* Header */}
@@ -25,18 +12,9 @@ export default function Home() {
             <span className="text-xl font-bold">{APP_TITLE}</span>
           </div>
           <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                <span className="text-sm text-muted-foreground">Olá, {user?.name}</span>
-                <Button variant="outline" size="sm" asChild>
-                  <a href="/dashboard">Acessar Dashboard</a>
-                </Button>
-              </>
-            ) : (
-              <Button size="sm" asChild>
-                <a href={getLoginUrl()}>Entrar</a>
-              </Button>
-            )}
+            <Button variant="outline" size="sm" asChild>
+              <a href="/dashboard">Acessar Dashboard</a>
+            </Button>
           </div>
         </div>
       </header>
@@ -53,20 +31,12 @@ export default function Home() {
               resumos automáticos e análises detalhadas. Simplifique sua gestão financeira.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {isAuthenticated ? (
-                <>
-                  <Button size="lg" asChild>
-                    <a href="/importacao">Importar Dados</a>
-                  </Button>
-                  <Button size="lg" variant="outline" asChild>
-                    <a href="/dashboard">Ver Dashboard</a>
-                  </Button>
-                </>
-              ) : (
-                <Button size="lg" asChild>
-                  <a href={getLoginUrl()}>Comece Agora</a>
-                </Button>
-              )}
+              <Button size="lg" asChild>
+                <a href="/importacao">Importar Dados</a>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <a href="/dashboard">Ver Dashboard</a>
+              </Button>
             </div>
           </div>
         </section>
