@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import DashboardLayout from "@/components/DashboardLayout";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
 
 export default function Importacao() {
   const [, setLocation] = useLocation();
@@ -103,7 +103,6 @@ export default function Importacao() {
   );
 
   return (
-    <DashboardLayout>
       <div className="container max-w-6xl py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Importação de Dados</h1>
@@ -239,6 +238,5 @@ export default function Importacao() {
           </Card>
         </div>
       </div>
-    </DashboardLayout>
   );
 }

@@ -401,7 +401,7 @@ export async function getFolhaPagamentoSummary(uploadId: number) {
 
   const result = await db
     .select({
-      totalFolha: sql<number>`SUM(${folhaPagamento.total})`,
+      totalFolha: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
       totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
     })
     .from(folhaPagamento)
@@ -508,6 +508,54 @@ export async function getReceitasMensais(uploadId: number) {
     }));
 }
 
+export async function getDespesasMensais(uploadId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const despesasPorMes = await db
+    .select({
+      mes: contasAPagar.mes,
+      totalValor: sql<number>`COALESCE(SUM(${contasAPagar.valor}), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), 0)`,
+      totalRegistros: sql<number>`COUNT(*)`,
+    })
+    .from(contasAPagar)
+    .where(eq(contasAPagar.uploadId, uploadId))
+    .groupBy(contasAPagar.mes)
+    .orderBy(asc(contasAPagar.mes));
+
+  // Garantir que todos os 12 meses apareçam
+  const mesesComDados = new Map(
+    despesasPorMes
+      .filter(d => d.mes !== null && d.mes !== undefined)
+      .map(d => [d.mes!, {
+        mes: d.mes!,
+        mesNome: getMesNome(d.mes!),
+        totalValor: Number(d.totalValor),
+        totalPago: Number(d.totalPago),
+        totalRegistros: Number(d.totalRegistros),
+      }])
+  );
+
+  // Preencher todos os 12 meses
+  const todosMeses = [];
+  for (let mes = 1; mes <= 12; mes++) {
+    if (mesesComDados.has(mes)) {
+      todosMeses.push(mesesComDados.get(mes)!);
+    } else {
+      todosMeses.push({
+        mes,
+        mesNome: getMesNome(mes),
+        totalValor: 0,
+        totalPago: 0,
+        totalRegistros: 0,
+      });
+    }
+  }
+
+  return todosMeses;
+}
+
 export async function getDadosMensais(uploadId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -564,6 +612,88 @@ export async function getDadosMensais(uploadId: number) {
   });
 
   return dadosMensais;
+}
+
+// ===== DRE ESPECÍFICO =====
+
+export async function getDRESummary(uploadId: number, mes?: number | null) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Construir condições WHERE
+  const receitasWhere = mes !== null && mes !== undefined
+    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
+    : eq(contasAReceber.uploadId, uploadId);
+
+  const despesasWhere = mes !== null && mes !== undefined
+    ? and(eq(contasAPagar.uploadId, uploadId), eq(contasAPagar.mes, mes))
+    : eq(contasAPagar.uploadId, uploadId);
+
+  // Buscar receitas
+  const receitasResult = await db
+    .select({
+      totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+    })
+    .from(contasAReceber)
+    .where(receitasWhere);
+
+  // Buscar despesas
+  const despesasResult = await db
+    .select({
+      totalValor: sql<number>`COALESCE(SUM(${contasAPagar.valor}), 0)`,
+      totalPago: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), 0)`,
+    })
+    .from(contasAPagar)
+    .where(despesasWhere);
+
+  // Buscar folha (folha não tem mês, então sempre busca tudo)
+  const folhaResult = await db
+    .select({
+      totalFolha: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
+      totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
+    })
+    .from(folhaPagamento)
+    .where(eq(folhaPagamento.uploadId, uploadId));
+
+  const receitas = receitasResult[0] || { totalValor: 0, totalRecebido: 0 };
+  const despesas = despesasResult[0] || { totalValor: 0, totalPago: 0 };
+  const folha = folhaResult[0] || { totalFolha: 0, totalFuncionarios: 0 };
+
+  // Usar totalRecebido se disponível, senão totalValor
+  const totalReceitas = Number(receitas.totalRecebido) > 0 
+    ? Number(receitas.totalRecebido) 
+    : Number(receitas.totalValor);
+  
+  const totalDespesas = Number(despesas.totalPago);
+  const totalFolha = Number(folha.totalFolha);
+
+  const lucroOperacional = totalReceitas - totalDespesas;
+  const lucroLiquido = totalReceitas - totalDespesas - totalFolha;
+  const margemOperacional = totalReceitas > 0 ? (lucroOperacional / totalReceitas) * 100 : 0;
+  const margemLiquida = totalReceitas > 0 ? (lucroLiquido / totalReceitas) * 100 : 0;
+
+  return {
+    receitas: {
+      totalValor: Number(receitas.totalValor),
+      totalRecebido: Number(receitas.totalRecebido),
+      total: totalReceitas,
+    },
+    despesas: {
+      totalValor: Number(despesas.totalValor),
+      totalPago: totalDespesas,
+    },
+    folha: {
+      totalFolha: totalFolha,
+      totalFuncionarios: Number(folha.totalFuncionarios),
+    },
+    resultado: {
+      lucroOperacional,
+      lucroLiquido,
+      margemOperacional,
+      margemLiquida,
+    },
+  };
 }
 
 function getMesNome(mes: number): string {

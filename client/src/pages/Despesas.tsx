@@ -3,8 +3,9 @@ import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowDownRight, Loader2, TrendingDown } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList } from "recharts";
+import { Skeleton } from "@/components/Skeleton";
 import { DataTable } from "@/components/DataTable";
 import { MonthFilter } from "@/components/MonthFilter";
 import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
@@ -51,6 +52,12 @@ export default function Despesas() {
     { enabled: !!latestUpload }
   );
 
+  // Buscar despesas mensais para gráfico de evolução (apenas quando não há filtro de mês)
+  const { data: despesasMensais } = trpc.financial.getDespesasMensais.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload && !selectedMonth }
+  );
+
   // Filtrar despesas por mês se selecionado
   const filteredDespesas = useMemo(() => {
     if (!despesas) return [];
@@ -74,22 +81,20 @@ export default function Despesas() {
 
   if (!latestUpload) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
-            <p className="text-muted-foreground mb-6">
-              Faça o upload de uma planilha Excel para visualizar suas despesas.
-            </p>
-            <a
-              href="/importacao"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              Importar Dados
-            </a>
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
+          <p className="text-muted-foreground mb-6">
+            Faça o upload de uma planilha Excel para visualizar suas despesas.
+          </p>
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Importar Dados
+          </a>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -121,8 +126,7 @@ export default function Despesas() {
   const totalPago = summary?.summary?.totalPago || 0;
 
   return (
-    <DashboardLayout>
-      <div className="container max-w-7xl py-8">
+    <div className="container max-w-7xl py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Despesas</h1>
@@ -143,20 +147,37 @@ export default function Despesas() {
 
         {/* Cards de Resumo */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(selectedMonth ? filteredSummary.totalValor : totalValor)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valor original {selectedMonth ? "do mês" : "geral"}
-              </p>
-            </CardContent>
-          </Card>
+          {loadingSummary ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-4 rounded" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-32 mb-2" />
+                    <Skeleton className="h-3 w-40" />
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
+                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(selectedMonth ? filteredSummary.totalValor : totalValor)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Valor original {selectedMonth ? "do mês" : "geral"}
+                  </p>
+                </CardContent>
+              </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -193,21 +214,85 @@ export default function Despesas() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
+                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {selectedMonth ? filteredSummary.totalRegistros : (summary?.summary?.totalRegistros || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Contas a pagar {selectedMonth ? "do mês" : "geral"}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+
+        {/* Gráfico de Evolução Mensal - apenas quando não há filtro */}
+        {!selectedMonth && despesasMensais && despesasMensais.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Evolução Mensal de Despesas</CardTitle>
+              <CardDescription>
+                Comparação de despesas pagas por mês (todos os 12 meses)
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {selectedMonth ? filteredSummary.totalRegistros : (summary?.summary?.totalRegistros || 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Contas a pagar {selectedMonth ? "do mês" : "geral"}
-              </p>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={despesasMensais} margin={{ top: 10, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                  <XAxis 
+                    dataKey="mesNome" 
+                    stroke="#6b7280"
+                    fontSize={11}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tick={{ fill: "#9ca3af" }}
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={12}
+                    tick={{ fill: "#9ca3af" }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ 
+                      backgroundColor: "#fff", 
+                      border: "1px solid #e5e7eb", 
+                      borderRadius: "6px",
+                      color: "#1f2937",
+                      fontWeight: 500,
+                      padding: "8px 12px"
+                    }}
+                  />
+                  <Bar 
+                    dataKey="totalPago" 
+                    fill={SERIES_COLORS.despesas}
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList 
+                      dataKey="totalPago" 
+                      position="top"
+                      formatter={(value: number) => {
+                        if (value === 0) return "";
+                        const formatted = formatCurrency(value);
+                        return formatted.replace("R$ ", "");
+                      }}
+                      style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                      offset={5}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
+        )}
 
         {/* Gráficos */}
         <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -262,30 +347,48 @@ export default function Despesas() {
             <CardContent>
               {despesasCentroCustoChart.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={despesasCentroCustoChart}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <BarChart data={despesasCentroCustoChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
                     <XAxis 
                       dataKey="name" 
                       angle={-45} 
                       textAnchor="end" 
                       height={100} 
-                      tick={{ fontSize: 11 }}
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
                       stroke="#6b7280"
                     />
                     <YAxis 
                       tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                       stroke="#6b7280"
                       fontSize={11}
+                      tick={{ fill: "#9ca3af" }}
                     />
                     <Tooltip 
                       formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                      contentStyle={{ 
+                        backgroundColor: "#fff", 
+                        border: "1px solid #e5e7eb", 
+                        borderRadius: "6px",
+                        color: "#1f2937",
+                        fontWeight: 500
+                      }}
                     />
                     <Bar 
                       dataKey="valor" 
-                      fill={SERIES_COLORS.warning}
+                      fill={SERIES_COLORS.despesas}
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      <LabelList 
+                        dataKey="valor" 
+                        position="top"
+                        formatter={(value: number) => {
+                          const formatted = formatCurrency(value * 100);
+                          return formatted.replace("R$ ", "");
+                        }}
+                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                        offset={5}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -490,6 +593,5 @@ export default function Despesas() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
   );
 }

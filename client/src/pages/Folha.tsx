@@ -3,7 +3,7 @@ import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Loader2 } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { DataTable } from "@/components/DataTable";
 import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
@@ -39,22 +39,20 @@ export default function Folha() {
 
   if (!latestUpload) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
-            <p className="text-muted-foreground mb-6">
-              Faça o upload de uma planilha Excel para visualizar a folha de pagamento.
-            </p>
-            <a
-              href="/importacao"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              Importar Dados
-            </a>
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
+          <p className="text-muted-foreground mb-6">
+            Faça o upload de uma planilha Excel para visualizar a folha de pagamento.
+          </p>
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Importar Dados
+          </a>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -93,7 +91,6 @@ export default function Folha() {
   }, [folha]);
 
   return (
-    <DashboardLayout>
       <div className="container max-w-7xl py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Folha de Pagamento</h1>
@@ -346,6 +343,5 @@ export default function Folha() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
   );
 }

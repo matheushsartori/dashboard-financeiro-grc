@@ -3,7 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
 import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
@@ -58,35 +58,31 @@ export default function Dashboard() {
 
   if (!latestUpload) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="text-center py-12">
-            <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
-            <p className="text-muted-foreground mb-6">
-              Faça o upload de uma planilha Excel para visualizar seus dados financeiros.
-            </p>
-            <a
-              href="/importacao"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              Importar Dados
-            </a>
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
+          <p className="text-muted-foreground mb-6">
+            Faça o upload de uma planilha Excel para visualizar seus dados financeiros.
+          </p>
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Importar Dados
+          </a>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
+      <div className="container max-w-7xl py-8">
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         </div>
-      </DashboardLayout>
     );
   }
 
@@ -128,8 +124,7 @@ export default function Dashboard() {
     })) || [];
 
   return (
-    <DashboardLayout>
-      <div className="container max-w-7xl py-8">
+    <div className="container max-w-7xl py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Dashboard Financeiro</h1>
@@ -411,6 +406,5 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
   );
 }

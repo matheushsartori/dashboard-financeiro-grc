@@ -21,69 +21,69 @@ function formatDate(date: Date | null | undefined): string {
   return new Date(date).toLocaleDateString("pt-BR");
 }
 
-export default function ReceitasEmpresa() {
+export default function DespesasFornecedor() {
   const searchParams = new URLSearchParams(useSearch());
-  const cliente = searchParams.get("cliente");
+  const fornecedor = searchParams.get("fornecedor");
   const uploadId = searchParams.get("uploadId");
   const mes = searchParams.get("mes");
   const [, setLocation] = useLocation();
 
-  const decodedCliente = cliente ? decodeURIComponent(cliente) : null;
+  const decodedFornecedor = fornecedor ? decodeURIComponent(fornecedor) : null;
   const uploadIdNum = uploadId ? parseInt(uploadId) : null;
   const mesNum = mes ? parseInt(mes) : null;
 
-  const { data: receitas, isLoading } = trpc.financial.getReceitasPorEmpresaDetalhes.useQuery(
+  const { data: despesas, isLoading } = trpc.financial.getDespesasPorFornecedorDetalhes.useQuery(
     { 
       uploadId: uploadIdNum!, 
-      cliente: decodedCliente!,
+      fornecedor: decodedFornecedor!,
       mes: mesNum ?? undefined
     },
-    { enabled: !!uploadIdNum && !!decodedCliente }
+    { enabled: !!uploadIdNum && !!decodedFornecedor }
   );
 
   // Calcular estatísticas
   const stats = useMemo(() => {
-    if (!receitas || receitas.length === 0) {
+    if (!despesas || despesas.length === 0) {
       return {
         totalValor: 0,
-        totalRecebido: 0,
+        totalPago: 0,
         quantidade: 0,
         media: 0,
         ultimoPagamento: null,
       };
     }
 
-    const totalValor = receitas.reduce((sum, r) => sum + (r.valor || 0), 0);
-    const totalRecebido = receitas.reduce((sum, r) => sum + (r.valorRecebido || r.valor || 0), 0);
-    const quantidade = receitas.length;
-    const media = quantidade > 0 ? totalRecebido / quantidade : 0;
+    const totalValor = despesas.reduce((sum, d) => sum + (d.valor || 0), 0);
+    const totalPago = despesas.reduce((sum, d) => sum + (d.valorPago || d.valor || 0), 0);
+    const quantidade = despesas.length;
+    const media = quantidade > 0 ? totalPago / quantidade : 0;
     
-    const pagamentosComData = receitas
-      .filter(r => r.dataRecebimento)
-      .map(r => new Date(r.dataRecebimento!))
+    const pagamentosComData = despesas
+      .filter(d => d.dataPagamento)
+      .map(d => new Date(d.dataPagamento!))
       .sort((a, b) => b.getTime() - a.getTime());
     
     const ultimoPagamento = pagamentosComData.length > 0 ? pagamentosComData[0] : null;
 
     return {
       totalValor,
-      totalRecebido,
+      totalPago,
       quantidade,
       media,
       ultimoPagamento,
     };
-  }, [receitas]);
+  }, [despesas]);
 
-  if (!uploadIdNum || !decodedCliente) {
+  if (!uploadIdNum || !decodedFornecedor) {
     return (
       <div className="container max-w-7xl py-8">
         <div className="text-center py-12">
           <h2 className="text-2xl font-bold mb-2">Parâmetros inválidos</h2>
           <p className="text-muted-foreground mb-6">
-            Cliente ou upload não especificado.
+            Fornecedor ou upload não especificado.
           </p>
-          <Button onClick={() => setLocation("/receitas")}>
-            Voltar para Receitas
+          <Button onClick={() => setLocation("/despesas")}>
+            Voltar para Despesas
           </Button>
         </div>
       </div>
@@ -95,14 +95,14 @@ export default function ReceitasEmpresa() {
         <div className="mb-8">
           <Button
             variant="ghost"
-            onClick={() => setLocation("/receitas")}
+            onClick={() => setLocation("/despesas")}
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para Receitas
+            Voltar para Despesas
           </Button>
           <div>
-            <h1 className="text-3xl font-bold mb-2">{decodedCliente}</h1>
+            <h1 className="text-3xl font-bold mb-2">{decodedFornecedor}</h1>
             <p className="text-muted-foreground">
               Detalhamento de todos os pagamentos {mesNum ? `do mês ${mesNum}` : "geral"}
             </p>
@@ -124,11 +124,11 @@ export default function ReceitasEmpresa() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Recebido</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(stats.totalRecebido)}
+              <div className="text-2xl font-bold text-red-600">
+                {formatCurrency(stats.totalPago)}
               </div>
             </CardContent>
           </Card>
@@ -178,7 +178,7 @@ export default function ReceitasEmpresa() {
           <CardHeader>
             <CardTitle>Pagamentos Detalhados</CardTitle>
             <CardDescription>
-              Lista completa de pagamentos desta empresa
+              Lista completa de pagamentos deste fornecedor
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -186,9 +186,9 @@ export default function ReceitasEmpresa() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : receitas && receitas.length > 0 ? (
+            ) : despesas && despesas.length > 0 ? (
               <DataTable
-                data={receitas}
+                data={despesas}
                 columns={[
                   {
                     key: "dataLancamento",
@@ -207,18 +207,18 @@ export default function ReceitasEmpresa() {
                     className: "text-right",
                   },
                   {
-                    key: "valorRecebido",
-                    label: "Valor Recebido",
+                    key: "valorPago",
+                    label: "Valor Pago",
                     render: (value, row) => (
-                      <span className="text-green-600 font-semibold">
+                      <span className="text-red-600 font-semibold">
                         {formatCurrency(value || row.valor || 0)}
                       </span>
                     ),
                     className: "text-right",
                   },
                   {
-                    key: "dataRecebimento",
-                    label: "Data Recebimento",
+                    key: "dataPagamento",
+                    label: "Data Pagamento",
                     render: (value) => (
                       <span className={value ? "" : "text-muted-foreground"}>
                         {value ? formatDate(value) : "Pendente"}
@@ -250,7 +250,7 @@ export default function ReceitasEmpresa() {
               />
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Nenhum pagamento encontrado para esta empresa
+                Nenhum pagamento encontrado para este fornecedor
               </div>
             )}
           </CardContent>

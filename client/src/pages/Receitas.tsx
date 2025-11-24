@@ -3,12 +3,13 @@ import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from "recharts";
 import { DataTable } from "@/components/DataTable";
 import { MonthFilter } from "@/components/MonthFilter";
 import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/Skeleton";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -85,22 +86,20 @@ export default function Receitas() {
 
   if (!latestUpload) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
-            <p className="text-muted-foreground mb-6">
-              Faça o upload de uma planilha Excel para visualizar suas receitas.
-            </p>
-            <a
-              href="/importacao"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              Importar Dados
-            </a>
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
+          <p className="text-muted-foreground mb-6">
+            Faça o upload de uma planilha Excel para visualizar suas receitas.
+          </p>
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Importar Dados
+          </a>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -110,8 +109,7 @@ export default function Receitas() {
   const totalRegistros = summary?.summary?.totalRegistros || 0;
 
   return (
-    <DashboardLayout>
-      <div className="container max-w-7xl py-8">
+    <div className="container max-w-7xl py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Receitas</h1>
@@ -135,65 +133,84 @@ export default function Receitas() {
 
         {/* Cards de Resumo */}
         <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Valor Emitido</CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(totalValor)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Total de notas emitidas {selectedMonth ? "do mês" : "geral"}
-              </p>
-            </CardContent>
-          </Card>
+          {loadingSummary ? (
+            <>
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-4 rounded" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-32 mb-2" />
+                    <Skeleton className="h-3 w-40" />
+                  </CardContent>
+                </Card>
+              ))}
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Valor Emitido</CardTitle>
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(totalValor)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Total de notas emitidas {selectedMonth ? "do mês" : "geral"}
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Recebido</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(totalRecebido)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valor efetivamente recebido {selectedMonth ? "do mês" : "geral"}
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Recebido</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {formatCurrency(totalRecebido)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Valor efetivamente recebido {selectedMonth ? "do mês" : "geral"}
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Recebimento</CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {totalValor ? `${((totalRecebido / totalValor) * 100).toFixed(1)}%` : "0%"}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Percentual recebido
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Taxa de Recebimento</CardTitle>
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {totalValor ? `${((totalRecebido / totalValor) * 100).toFixed(1)}%` : "0%"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Percentual recebido
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {totalRegistros}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Contas a receber {selectedMonth ? "do mês" : "geral"}
-              </p>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
+                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {totalRegistros}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Contas a receber {selectedMonth ? "do mês" : "geral"}
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Gráfico de Evolução Mensal - apenas quando não há filtro */}
@@ -480,6 +497,5 @@ export default function Receitas() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
   );
 }

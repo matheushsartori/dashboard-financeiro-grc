@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
+// DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
@@ -49,34 +49,30 @@ export default function DRE() {
 
   if (!latestUpload) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
-            <p className="text-muted-foreground mb-6">
-              Faça o upload de uma planilha Excel para visualizar o DRE.
-            </p>
-            <a
-              href="/importacao"
-              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
-            >
-              Importar Dados
-            </a>
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-2">Nenhum dado importado</h2>
+          <p className="text-muted-foreground mb-6">
+            Faça o upload de uma planilha Excel para visualizar o DRE.
+          </p>
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Importar Dados
+          </a>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (isLoading) {
     return (
-      <DashboardLayout>
-        <div className="container max-w-7xl py-8">
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+      <div className="container max-w-7xl py-8">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
@@ -112,12 +108,11 @@ export default function DRE() {
     {
       categoria: "Resultado",
       valor: lucroLiquido / 100,
-      cor: lucroLiquido >= 0 ? SERIES_COLORS.resultado : SERIES_COLORS.danger,
+      cor: lucroLiquido >= 0 ? SERIES_COLORS.resultado : SERIES_COLORS.despesas,
     },
   ];
 
   return (
-    <DashboardLayout>
       <div className="container max-w-7xl py-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -367,6 +362,5 @@ export default function DRE() {
           </Card>
         )}
       </div>
-    </DashboardLayout>
   );
 }

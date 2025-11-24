@@ -80,6 +80,14 @@ export const appRouter = router({
         return getDashboardSummary(input.uploadId);
       }),
 
+    // Obter resumo do DRE
+    getDRESummary: protectedProcedure
+      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .query(async ({ input }) => {
+        const { getDRESummary } = await import("./db-financial");
+        return getDRESummary(input.uploadId, input.mes ?? null);
+      }),
+
     // Obter dados mensais
     getDadosMensais: protectedProcedure
       .input(z.object({ uploadId: z.number() }))
@@ -152,6 +160,14 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getReceitasMensais } = await import("./db-financial");
         return getReceitasMensais(input.uploadId);
+      }),
+
+    // Obter despesas mensais (evolução)
+    getDespesasMensais: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDespesasMensais } = await import("./db-financial");
+        return getDespesasMensais(input.uploadId);
       }),
 
     // Obter receitas por empresa
