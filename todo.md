@@ -123,3 +123,12 @@
 - [x] Verificar schema.ts usa sintaxe PostgreSQL
 - [x] Verificar todas as queries são compatíveis com PostgreSQL
 - [x] Testar conexão e operações básicas
+
+
+### Revisão Completa do Projeto
+- [x] Revisar package.json (dependências, scripts, versões)
+- [x] Verificar dependências não utilizadas
+- [x] Revisar arquivos de configuração (tsconfig, vite, etc)
+- [x] Limpar arquivos temporários e desnecessários
+- [x] Verificar imports e exports
+- [x] Validar estrutura de pastas

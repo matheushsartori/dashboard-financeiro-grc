@@ -105,3 +105,13 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Test files
+test-*.mjs
+test-*.js
+
+# Manus platform files
+.manus/
+
+# Upload directory
+upload/
