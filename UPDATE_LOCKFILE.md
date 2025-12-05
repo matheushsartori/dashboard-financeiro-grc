@@ -21,3 +21,4 @@ Se você estiver em um ambiente CI/CD ou editor que usa `--frozen-lockfile`, voc
 2. Fazer commit do `pnpm-lock.yaml` atualizado
 3. Ou remover temporariamente a flag `--frozen-lockfile` do script de instalação
 
+

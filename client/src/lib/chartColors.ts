@@ -45,3 +45,4 @@ export const SERIES_COLORS = {
   folha: CHART_COLORS.warning,
 };
 
+
