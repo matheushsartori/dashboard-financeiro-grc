@@ -4,10 +4,10 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { DataTable } from "@/components/DataTable";
 import { MonthFilter } from "@/components/MonthFilter";
-import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
+import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
 

@@ -4,9 +4,9 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Loader2 } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { DataTable } from "@/components/DataTable";
-import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
+import { SERIES_COLORS } from "@/lib/chartColors";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -163,30 +163,50 @@ export default function Folha() {
             <CardContent>
               {custoPorAreaChart.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={custoPorAreaChart}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => {
-                        const shortName = name.length > 20 ? name.substring(0, 20) + "..." : name;
-                        return `${shortName}: ${(percent * 100).toFixed(0)}%`;
-                      }}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {custoPorAreaChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
+                  <BarChart data={custoPorAreaChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                      tick={{ fill: "#9ca3af" }}
+                    />
                     <Tooltip 
                       formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                      contentStyle={{ 
+                        backgroundColor: "#fff", 
+                        border: "1px solid #e5e7eb", 
+                        borderRadius: "6px",
+                        color: "#1f2937",
+                        fontWeight: 500
+                      }}
                     />
-                    <Legend />
-                  </PieChart>
+                    <Bar 
+                      dataKey="value" 
+                      fill={SERIES_COLORS.folha}
+                      radius={[4, 4, 0, 0]}
+                    >
+                      <LabelList 
+                        dataKey="value" 
+                        position="top"
+                        formatter={(value: number) => {
+                          if (value === 0) return "";
+                          const formatted = formatCurrency(value * 100);
+                          return formatted.replace("R$ ", "");
+                        }}
+                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                        offset={5}
+                      />
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[350px] flex items-center justify-center text-muted-foreground">

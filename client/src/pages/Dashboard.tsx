@@ -4,9 +4,9 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
-import { SERIES_COLORS, PIE_CHART_COLORS } from "@/lib/chartColors";
+import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
 
@@ -317,24 +317,22 @@ export default function Dashboard() {
             <CardContent>
               {despesasCategoriaChart.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={despesasCategoriaChart}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => {
-                        const shortName = name.length > 15 ? name.substring(0, 15) + "..." : name;
-                        return `${shortName}: ${(percent * 100).toFixed(0)}%`;
-                      }}
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {despesasCategoriaChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
+                  <BarChart data={despesasCategoriaChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                      tick={{ fill: "#9ca3af" }}
+                    />
                     <Tooltip 
                       formatter={(value: number) => formatCurrency(value * 100)}
                       contentStyle={{
@@ -345,8 +343,24 @@ export default function Dashboard() {
                       }}
                       labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
                     />
-                    <Legend />
-                  </PieChart>
+                    <Bar 
+                      dataKey="value" 
+                      fill={SERIES_COLORS.despesas}
+                      radius={[4, 4, 0, 0]}
+                    >
+                      <LabelList 
+                        dataKey="value" 
+                        position="top"
+                        formatter={(value: number) => {
+                          if (value === 0) return "";
+                          const formatted = formatCurrency(value * 100);
+                          return formatted.replace("R$ ", "");
+                        }}
+                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                        offset={5}
+                      />
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[350px] flex items-center justify-center text-muted-foreground">

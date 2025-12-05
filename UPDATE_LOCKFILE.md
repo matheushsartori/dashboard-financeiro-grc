@@ -22,3 +22,4 @@ Se você estiver em um ambiente CI/CD ou editor que usa `--frozen-lockfile`, voc
 3. Ou remover temporariamente a flag `--frozen-lockfile` do script de instalação
 
 
+
