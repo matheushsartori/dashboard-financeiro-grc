@@ -24,7 +24,7 @@ jobs:
           package_json: package.json
       
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile --no-optional=false
+        run: pnpm install --no-frozen-lockfile --no-optional=false
       
       - name: Build Project
         run: pnpm run build
