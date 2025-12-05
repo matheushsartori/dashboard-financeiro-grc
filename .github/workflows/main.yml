@@ -12,25 +12,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- PASSO DE BUILD NO GITHUB ACTIONS (Necessário para gerar a pasta 'dist') ---
-      # Você deve adicionar aqui os passos para instalar dependências e fazer o build
-      # Exemplo:
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      # - name: Install Dependencies
-      #   run: npm install
-      # - name: Build Project
-      #   run: npm run build
-      # -----------------------------------------------------------------------------
+      # 1. BUILD NO GITHUB ACTIONS
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use a versão correta
+      - name: Install Dependencies
+        run: npm install --force --legacy-peer-deps
+      - name: Build Project
+        run: npm run build
 
-      - name: Deploy via SSH
+      # 2. SINCRONIZAR ARQUIVOS COM O SERVIDOR
+      - name: Sync files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 89.116.191.136
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "dist/" # Envia apenas a pasta de build
+          target: "/opt/dashboard-financeiro-grc/"
+
+      # 3. EXECUTAR O COMANDO DE REINICIALIZAÇÃO
+      - name: Restart PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 89.116.191.136
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Executa o script de deploy no servidor
-            /opt/dashboard-financeiro-grc/deploy.sh
+            # O script agora só precisa reiniciar o PM2
+            pm2 startOrRestart /opt/dashboard-financeiro-grc/dist/index.js --name dashboard-grc
