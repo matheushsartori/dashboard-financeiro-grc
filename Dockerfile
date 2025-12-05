@@ -37,6 +37,7 @@ RUN pnpm install --frozen-lockfile --prod
 # Copiar arquivos buildados do stage anterior
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/dist/drizzle ./dist/drizzle
 # Copiar script de migrations
 COPY apply-migrations-pg.mjs ./
 
