@@ -47,5 +47,13 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # O script agora só precisa reiniciar o PM2
-            pm2 startOrRestart /opt/dashboard-financeiro-grc/dist/index.js --name dashboard-grc
+            cd /opt/dashboard-financeiro-grc
+            # Para o processo existente se estiver rodando
+            pm2 stop dashboard-grc || true
+            pm2 delete dashboard-grc || true
+            # Inicia o novo processo
+            pm2 start dist/index.js --name dashboard-grc
+            # Salva a configuração do PM2
+            pm2 save
+            # Reinicia o PM2 para garantir que o processo persista
+            pm2 startup || true
