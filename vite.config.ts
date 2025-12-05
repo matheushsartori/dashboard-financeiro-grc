@@ -27,6 +27,17 @@ export default defineConfig({
   build: {
     outDir: resolveFromRoot("dist/public"),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'recharts-vendor': ['recharts'],
+          'trpc-vendor': ['@trpc/client', '@trpc/react-query', '@trpc/server'],
+        },
+      },
+    },
+    sourcemap: false, // Desabilitar sourcemap para evitar avisos
   },
   server: {
     host: true,
