@@ -36,8 +36,14 @@ jobs:
           host: 89.116.191.136
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 120s
+          command_timeout: 20m
           source: "dist/" # Envia apenas a pasta de build
           target: "/opt/dashboard-financeiro-grc/"
+          overwrite: true
+          strip_components: 0
+          debug: true
 
       # 3. EXECUTAR O COMANDO DE REINICIALIZAÇÃO
       - name: Restart PM2
