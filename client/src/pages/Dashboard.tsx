@@ -25,32 +25,35 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
 
-  const { data: uploads } = trpc.financial.listUploads.useQuery();
+  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
     return null;
   }, [uploadId, uploads]);
 
-  const { data: summary, isLoading } = trpc.financial.getDashboardSummary.useQuery(
+  const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
-  const { data: contasPagarData } = trpc.financial.getContasAPagarSummary.useQuery(
+  const { data: contasPagarData, isLoading: loadingContasPagar } = trpc.financial.getContasAPagarSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
-  const { data: contasReceberData } = trpc.financial.getContasAReceberSummary.useQuery(
+  const { data: contasReceberData, isLoading: loadingContasReceber } = trpc.financial.getContasAReceberSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
-  const { data: dadosMensais } = trpc.financial.getDadosMensais.useQuery(
+  const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
+
+  // Combinar todos os estados de loading
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingContasPagar || loadingContasReceber || loadingDadosMensais));
 
   // Filtrar dados mensais se mês selecionado
   const filteredDadosMensais = useMemo(() => {

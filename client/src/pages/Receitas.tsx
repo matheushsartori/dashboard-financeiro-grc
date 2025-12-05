@@ -29,7 +29,7 @@ export default function Receitas() {
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-  const { data: uploads } = trpc.financial.listUploads.useQuery();
+  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
@@ -47,7 +47,7 @@ export default function Receitas() {
   );
 
   // Buscar receitas mensais para gráfico de evolução (apenas quando não há filtro de mês)
-  const { data: receitasMensais } = trpc.financial.getReceitasMensais.useQuery(
+  const { data: receitasMensais, isLoading: loadingReceitasMensais } = trpc.financial.getReceitasMensais.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload && !selectedMonth }
   );
@@ -57,6 +57,9 @@ export default function Receitas() {
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
     { enabled: !!latestUpload }
   );
+
+  // Combinar todos os estados de loading
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingReceitas || loadingReceitasMensais || loadingReceitasPorEmpresa));
 
   // Receitas já vêm filtradas do backend
   const filteredReceitas = receitas || [];
@@ -87,7 +90,7 @@ export default function Receitas() {
       }));
   }, [filteredReceitas]);
 
-  if (!latestUpload) {
+  if (!latestUpload && !loadingUploads) {
     return (
       <div className="container max-w-7xl py-8">
         <div className="text-center py-12">
@@ -101,6 +104,52 @@ export default function Receitas() {
           >
             Importar Dados
           </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container max-w-7xl py-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <Skeleton className="h-10 w-64 mb-2" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <Skeleton className="h-10 w-48" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-40" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 mb-8">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

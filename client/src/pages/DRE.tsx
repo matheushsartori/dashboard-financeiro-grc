@@ -23,7 +23,7 @@ export default function DRE() {
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-  const { data: uploads } = trpc.financial.listUploads.useQuery();
+  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
@@ -37,22 +37,25 @@ export default function DRE() {
   );
 
   // Buscar dados mensais para gráfico
-  const { data: dadosMensais } = trpc.financial.getDadosMensais.useQuery(
+  const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
 
   // Buscar DRE de todos os meses para tabela horizontal
-  const { data: drePorMeses } = trpc.financial.getDREPorMeses.useQuery(
+  const { data: drePorMeses, isLoading: loadingDREPorMeses } = trpc.financial.getDREPorMeses.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload }
   );
 
   // Buscar dados totais (sem filtro) para comparação
-  const { data: dreTotal } = trpc.financial.getDRESummary.useQuery(
+  const { data: dreTotal, isLoading: loadingDRETotal } = trpc.financial.getDRESummary.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload && !!selectedMonth } // Só busca total quando há filtro de mês
   );
+
+  // Combinar todos os estados de loading
+  const isLoading = loadingUploads || (!!latestUpload && (loadingDRE || loadingDadosMensais || loadingDREPorMeses || loadingDRETotal));
 
   // Filtrar dados mensais se mês selecionado
   const filteredDadosMensais = useMemo(() => {
@@ -61,7 +64,7 @@ export default function DRE() {
     return dadosMensais.filter(d => d.mes === selectedMonth);
   }, [dadosMensais, selectedMonth]);
 
-  if (!latestUpload) {
+  if (!latestUpload && !loadingUploads) {
     return (
       <div className="container max-w-7xl py-8">
         <div className="text-center py-12">
@@ -80,7 +83,7 @@ export default function DRE() {
     );
   }
 
-  if (loadingDRE) {
+  if (isLoading) {
     return (
       <div className="container max-w-7xl py-8">
         <div className="mb-8">

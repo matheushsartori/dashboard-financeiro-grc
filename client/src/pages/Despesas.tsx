@@ -29,7 +29,7 @@ export default function Despesas() {
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-  const { data: uploads } = trpc.financial.listUploads.useQuery();
+  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
@@ -53,10 +53,13 @@ export default function Despesas() {
   );
 
   // Buscar despesas mensais para gráfico de evolução (apenas quando não há filtro de mês)
-  const { data: despesasMensais } = trpc.financial.getDespesasMensais.useQuery(
+  const { data: despesasMensais, isLoading: loadingDespesasMensais } = trpc.financial.getDespesasMensais.useQuery(
     { uploadId: latestUpload! },
     { enabled: !!latestUpload && !selectedMonth }
   );
+
+  // Combinar todos os estados de loading
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingDespesas || loadingDespesasPorFornecedor || loadingDespesasMensais));
 
   // Filtrar despesas por mês se selecionado
   const filteredDespesas = useMemo(() => {

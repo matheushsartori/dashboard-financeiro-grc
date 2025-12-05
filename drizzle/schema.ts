@@ -151,6 +151,7 @@ export const folhaPagamento = pgTable("folha_pagamento", {
   cc: varchar("cc", { length: 50 }),
   nome: varchar("nome", { length: 255 }).notNull(),
   tipoPagamento: varchar("tipo_pagamento", { length: 50 }), // SALÁRIO, PREMIAÇÃO, COMISSÃO
+  tipoVinculo: varchar("tipo_vinculo", { length: 10 }), // CLT, PJ, INDEFINIDO
   mes1: integer("mes_1"), // Armazenar em centavos
   mes2: integer("mes_2"),
   mes3: integer("mes_3"),

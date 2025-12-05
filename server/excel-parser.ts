@@ -15,6 +15,53 @@ function toCents(value: any): number {
   return isNaN(num) ? 0 : Math.round(num * 100);
 }
 
+// Função para identificar tipo de vínculo (CLT/PJ) baseado no tipoPagamento e área
+function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: string | null | undefined): "CLT" | "PJ" | "INDEFINIDO" {
+  if (!tipoPagamento) return "INDEFINIDO";
+  
+  const tipoUpper = tipoPagamento.toUpperCase().trim();
+  const areaUpper = area ? area.toUpperCase().trim() : "";
+  
+  // Identificadores explícitos de PJ
+  if (
+    tipoUpper.includes("PJ") ||
+    tipoUpper.includes("NOTA FISCAL") ||
+    tipoUpper.includes("NF") ||
+    tipoUpper.includes("PRESTAÇÃO") ||
+    tipoUpper.includes("SERVIÇO") ||
+    tipoUpper.includes("CONSULTORIA") ||
+    tipoUpper.includes("TERCEIRIZADO") ||
+    tipoUpper.includes("PESSOA JURIDICA") ||
+    tipoUpper.includes("PESSOA JURÍDICA") ||
+    areaUpper.includes("PJ") ||
+    areaUpper.includes("TERCEIRIZADO")
+  ) {
+    return "PJ";
+  }
+  
+  // Identificadores explícitos de CLT/PF
+  if (
+    tipoUpper.includes("SALÁRIO") ||
+    tipoUpper.includes("SALARIO") ||
+    tipoUpper.includes("13º") ||
+    tipoUpper.includes("FÉRIAS") ||
+    tipoUpper.includes("FERIAS") ||
+    tipoUpper.includes("ADICIONAL") ||
+    tipoUpper.includes("BONUS") ||
+    tipoUpper.includes("BÔNUS") ||
+    tipoUpper.includes("PREMIAÇÃO") ||
+    tipoUpper.includes("COMISSÃO") ||
+    tipoUpper.includes("COMISSAO") ||
+    tipoUpper.includes("RETIRADA") ||
+    areaUpper.includes("CLT") ||
+    areaUpper.includes("PF")
+  ) {
+    return "CLT";
+  }
+  
+  return "INDEFINIDO";
+}
+
 // Função auxiliar para converter datas do Excel
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
@@ -215,12 +262,17 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
       // Ignorar linhas de total
       if (!row["NOME"] || String(row["NOME"]).includes("TOTAL")) continue;
 
+      const area = row["ÁREA"] || null;
+      const tipoPagamento = row["__EMPTY"] || row["Unnamed: 3"] || null; // Tentar ambas as colunas possíveis
+      const tipoVinculo = identificarTipoVinculo(tipoPagamento, area);
+
       result.folhaPagamento.push({
         uploadId,
-        area: row["ÁREA"] || null,
+        area,
         cc: row["CC"] || null,
         nome: row["NOME"],
-        tipoPagamento: row["Unnamed: 3"] || null, // Coluna sem nome que contém tipo (SALÁRIO, PREMIAÇÃO, etc)
+        tipoPagamento,
+        tipoVinculo,
         mes1: toCents(row["1"]),
         mes2: toCents(row["2"]),
         mes3: toCents(row["3"]),
