@@ -4,12 +4,21 @@ import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function setupVite(app: Express, server: Server) {
+  // Import dinâmico do vite apenas quando necessário (desenvolvimento)
+  // Usar eval para evitar que o esbuild analise o import em build time
+  const viteModuleName = "v" + "ite"; // Quebrar a string para evitar análise estática
+  const viteModule = await import(viteModuleName);
+  const { createServer: createViteServer } = viteModule;
+  
+  // Import dinâmico do vite.config (pode ser .ts ou .js dependendo do ambiente)
+  const viteConfigPath = "../../vite.config";
+  const viteConfigModule = await import(`${viteConfigPath}.js`).catch(() => import(viteConfigPath));
+  const viteConfig = viteConfigModule.default || viteConfigModule;
+
   const serverOptions = {
     middlewareMode: true,
     hmr: { 
@@ -31,7 +40,7 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   const vite = await createViteServer({
-    ...viteConfig,
+    ...viteConfig.default,
     configFile: false,
     server: serverOptions,
     appType: "custom",
