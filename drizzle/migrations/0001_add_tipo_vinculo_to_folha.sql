@@ -32,3 +32,4 @@ SET "tipo_vinculo" = CASE
 END
 WHERE "tipo_vinculo" IS NULL;
 
+
