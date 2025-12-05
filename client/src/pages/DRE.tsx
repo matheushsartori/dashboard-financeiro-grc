@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
+import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
@@ -22,6 +23,7 @@ export default function DRE() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -30,9 +32,9 @@ export default function DRE() {
     return null;
   }, [uploadId, uploads]);
 
-  // Buscar dados do DRE (com filtro de mês)
+  // Buscar dados do DRE (com filtro de mês e tipo de visualização)
   const { data: dreData, isLoading: loadingDRE } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
@@ -50,7 +52,7 @@ export default function DRE() {
 
   // Buscar dados totais (sem filtro) para comparação
   const { data: dreTotal, isLoading: loadingDRETotal } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload && !!selectedMonth } // Só busca total quando há filtro de mês
   );
 
@@ -161,14 +163,24 @@ export default function DRE() {
             Análise completa do resultado financeiro {selectedMonth ? `(mês ${selectedMonth})` : "(geral)"}
           </p>
         </div>
-        <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+        <div className="flex items-center gap-4 flex-wrap">
+          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
+        </div>
       </div>
 
-      {selectedMonth && (
-        <div className="mb-4">
-          <Badge variant="outline" className="text-sm">
-            Visualizando dados do mês {selectedMonth}
-          </Badge>
+      {(selectedMonth || tipoVisualizacao !== "realizado") && (
+        <div className="mb-4 flex gap-2 flex-wrap">
+          {selectedMonth && (
+            <Badge variant="outline" className="text-sm">
+              Visualizando dados do mês {selectedMonth}
+            </Badge>
+          )}
+          {tipoVisualizacao !== "realizado" && (
+            <Badge variant="outline" className="text-sm">
+              {tipoVisualizacao === "projetado" ? "Projetado" : "Todos"}
+            </Badge>
+          )}
         </div>
       )}
 

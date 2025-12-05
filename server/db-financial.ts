@@ -129,11 +129,15 @@ export async function insertContasAPagar(data: InsertContaAPagar[]) {
 
   if (data.length === 0) return;
 
-  // Inserir em lotes de 100 para evitar problemas de memória
-  const batchSize = 100;
+  // Inserir em lotes de 500 para melhor performance (aumentado de 100)
+  const batchSize = 500;
+  const totalBatches = Math.ceil(data.length / batchSize);
   for (let i = 0; i < data.length; i += batchSize) {
     const batch = data.slice(i, i + batchSize);
     await db.insert(contasAPagar).values(batch);
+    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
+      console.log(`[Insert] Contas a Pagar: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+    }
   }
 }
 
@@ -155,13 +159,22 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
 
   if (tipoVisualizacao === "realizado") {
     // Apenas pagamentos com data de pagamento <= hoje ou sem data de pagamento mas com valorPago > 0
+    // OU sem valorPago mas com valor e data passada/sem data
     whereCondition = and(
       eq(contasAPagar.uploadId, uploadId),
       or(
         and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
-        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} > 0`)
+        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} > 0`),
+        and(
+          or(sql`${contasAPagar.valorPago} = 0`, isNull(contasAPagar.valorPago)),
+          sql`${contasAPagar.valor} > 0`,
+          or(
+            and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
+            isNull(contasAPagar.dataPagamento)
+          )
+        )
       )
-    );
+    )!;
   } else if (tipoVisualizacao === "projetado") {
     // Apenas pagamentos com data de pagamento > hoje ou sem data de pagamento mas sem valor pago
     whereCondition = and(
@@ -170,7 +183,7 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
         and(isNotNull(contasAPagar.dataPagamento), gt(contasAPagar.dataPagamento, hoje)),
         and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} = 0`, sql`${contasAPagar.valor} > 0`)
       )
-    );
+    )!;
   }
 
   const result = await db
@@ -291,10 +304,15 @@ export async function insertContasAReceber(data: InsertContaAReceber[]) {
 
   if (data.length === 0) return;
 
-  const batchSize = 100;
+  // Inserir em lotes de 500 para melhor performance (aumentado de 100)
+  const batchSize = 500;
+  const totalBatches = Math.ceil(data.length / batchSize);
   for (let i = 0; i < data.length; i += batchSize) {
     const batch = data.slice(i, i + batchSize);
     await db.insert(contasAReceber).values(batch);
+    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
+      console.log(`[Insert] Contas a Receber: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+    }
   }
 }
 
@@ -329,13 +347,19 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
 
   // Filtrar por tipo de visualização
   if (tipoVisualizacao === "realizado") {
-    // Apenas recebimentos REALMENTE recebidos: valorRecebido > 0 E dataRecebimento <= hoje
+    // Apenas recebimentos REALMENTE recebidos: valorRecebido > 0 OU (sem valorRecebido mas com valor e data passada/sem data)
     whereCondition = and(
       whereCondition,
-      sql`${contasAReceber.valorRecebido} > 0`,
       or(
-        and(isNotNull(contasAReceber.dataRecebimento), lte(contasAReceber.dataRecebimento, hoje)),
-        isNull(contasAReceber.dataRecebimento)
+        sql`${contasAReceber.valorRecebido} > 0`,
+        and(
+          or(sql`${contasAReceber.valorRecebido} = 0`, isNull(contasAReceber.valorRecebido)),
+          sql`${contasAReceber.valor} > 0`,
+          or(
+            and(isNotNull(contasAReceber.dataRecebimento), lte(contasAReceber.dataRecebimento, hoje)),
+            isNull(contasAReceber.dataRecebimento)
+          )
+        )
       )
     );
   } else if (tipoVisualizacao === "projetado") {
@@ -455,7 +479,16 @@ export async function insertFolhaPagamento(data: InsertFolhaPagamento[]) {
 
   if (data.length === 0) return;
 
-  await db.insert(folhaPagamento).values(data);
+  // Inserir em lotes de 500 para melhor performance
+  const batchSize = 500;
+  const totalBatches = Math.ceil(data.length / batchSize);
+  for (let i = 0; i < data.length; i += batchSize) {
+    const batch = data.slice(i, i + batchSize);
+    await db.insert(folhaPagamento).values(batch);
+    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
+      console.log(`[Insert] Folha de Pagamento: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+    }
+  }
 }
 
 export async function getFolhaPagamentoByUpload(uploadId: number) {
@@ -691,18 +724,80 @@ export async function getDadosMensais(uploadId: number) {
 
 // ===== DRE ESPECÍFICO =====
 
-export async function getDRESummary(uploadId: number, mes?: number | null) {
+export async function getDRESummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
   const db = await getDb();
   if (!db) return null;
 
-  // Construir condições WHERE
-  const receitasWhere = mes !== null && mes !== undefined
-    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
-    : eq(contasAReceber.uploadId, uploadId);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
 
-  const despesasWhere = mes !== null && mes !== undefined
-    ? and(eq(contasAPagar.uploadId, uploadId), eq(contasAPagar.mes, mes))
-    : eq(contasAPagar.uploadId, uploadId);
+  // Construir condições WHERE para receitas
+  let receitasWhere: any = eq(contasAReceber.uploadId, uploadId);
+  
+  if (mes !== null && mes !== undefined) {
+    receitasWhere = and(receitasWhere, eq(contasAReceber.mes, mes));
+  }
+
+  // Aplicar filtro de tipo de visualização para receitas
+  if (tipoVisualizacao === "realizado") {
+    receitasWhere = and(
+      receitasWhere,
+      or(
+        sql`${contasAReceber.valorRecebido} > 0`,
+        and(
+          or(sql`${contasAReceber.valorRecebido} = 0`, isNull(contasAReceber.valorRecebido)),
+          sql`${contasAReceber.valor} > 0`,
+          or(
+            and(isNotNull(contasAReceber.dataRecebimento), lte(contasAReceber.dataRecebimento, hoje)),
+            isNull(contasAReceber.dataRecebimento)
+          )
+        )
+      )
+    );
+  } else if (tipoVisualizacao === "projetado") {
+    receitasWhere = and(
+      receitasWhere,
+      or(
+        sql`${contasAReceber.valorRecebido} = 0`,
+        and(isNotNull(contasAReceber.dataRecebimento), gt(contasAReceber.dataRecebimento, hoje))
+      ),
+      sql`${contasAReceber.valor} > 0`
+    );
+  }
+
+  // Construir condições WHERE para despesas
+  let despesasWhere: any = eq(contasAPagar.uploadId, uploadId);
+  
+  if (mes !== null && mes !== undefined) {
+    despesasWhere = and(despesasWhere, eq(contasAPagar.mes, mes));
+  }
+
+  // Aplicar filtro de tipo de visualização para despesas
+  if (tipoVisualizacao === "realizado") {
+    despesasWhere = and(
+      despesasWhere,
+      or(
+        and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
+        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} > 0`),
+        and(
+          or(sql`${contasAPagar.valorPago} = 0`, isNull(contasAPagar.valorPago)),
+          sql`${contasAPagar.valor} > 0`,
+          or(
+            and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
+            isNull(contasAPagar.dataPagamento)
+          )
+        )
+      )
+    );
+  } else if (tipoVisualizacao === "projetado") {
+    despesasWhere = and(
+      despesasWhere,
+      or(
+        and(isNotNull(contasAPagar.dataPagamento), gt(contasAPagar.dataPagamento, hoje)),
+        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} = 0`, sql`${contasAPagar.valor} > 0`)
+      )
+    );
+  }
 
   // Buscar receitas
   const receitasResult = await db
@@ -761,10 +856,10 @@ export async function getDRESummary(uploadId: number, mes?: number | null) {
   const despesas = despesasResult[0] || { totalValor: 0, totalPago: 0 };
   const folha = folhaResult[0] || { totalFolha: 0, totalFuncionarios: 0 };
 
-  // Usar totalRecebido se disponível, senão totalValor
-  const totalReceitas = Number(receitas.totalRecebido) > 0 
-    ? Number(receitas.totalRecebido) 
-    : Number(receitas.totalValor);
+  // Usar totalRecebido para "realizado", senão usar totalValor
+  const totalReceitas = tipoVisualizacao === "realizado"
+    ? Number(receitas.totalRecebido)
+    : (Number(receitas.totalRecebido) > 0 ? Number(receitas.totalRecebido) : Number(receitas.totalValor));
   
   const totalDespesas = Number(despesas.totalPago);
   const totalFolha = Number(folha.totalFolha);

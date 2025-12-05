@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown, XCircle } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
@@ -25,12 +25,25 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
 
-  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
+  const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery(undefined, {
+    refetchInterval: (query) => {
+      // Se houver upload com status "processing", refetch a cada 3 segundos
+      const hasProcessing = query.state.data?.some((u: any) => u.status === "processing");
+      return hasProcessing ? 3000 : false;
+    },
+  });
+  
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
     return null;
   }, [uploadId, uploads]);
+
+  // Verificar status do upload atual
+  const currentUpload = useMemo(() => {
+    if (!latestUpload || !uploads) return null;
+    return uploads.find(u => u.id === latestUpload);
+  }, [latestUpload, uploads]);
 
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao },
@@ -76,6 +89,48 @@ export default function Dashboard() {
             className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
           >
             Importar Dados
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar mensagem de processamento se o upload estiver sendo processado
+  if (currentUpload?.status === "processing") {
+    return (
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <Loader2 className="h-16 w-16 mx-auto mb-4 text-primary animate-spin" />
+          <h2 className="text-2xl font-bold mb-2">Processando planilha...</h2>
+          <p className="text-muted-foreground mb-4">
+            A planilha <strong>{currentUpload.fileName}</strong> está sendo processada.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Isso pode levar alguns minutos para arquivos grandes. Os dados aparecerão automaticamente quando o processamento for concluído.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar erro se o upload falhou
+  if (currentUpload?.status === "failed") {
+    return (
+      <div className="container max-w-7xl py-8">
+        <div className="text-center py-12">
+          <XCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
+          <h2 className="text-2xl font-bold mb-2">Erro ao processar planilha</h2>
+          <p className="text-muted-foreground mb-4">
+            A planilha <strong>{currentUpload.fileName}</strong> falhou ao ser processada.
+          </p>
+          {currentUpload.errorMessage && (
+            <p className="text-sm text-red-500 mb-4">{currentUpload.errorMessage}</p>
+          )}
+          <a
+            href="/importacao"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            Tentar Novamente
           </a>
         </div>
       </div>

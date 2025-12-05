@@ -36,23 +36,48 @@ export const appRouter = router({
         });
 
         try {
+          console.log(`[Upload ${uploadId}] Iniciando processamento...`);
+          
           // Decodificar base64
           const buffer = Buffer.from(input.fileData, "base64");
+          console.log(`[Upload ${uploadId}] Arquivo decodificado: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
 
           // Parsear arquivo Excel
+          console.log(`[Upload ${uploadId}] Parseando arquivo Excel...`);
           const parsedData = parseExcelFile(buffer, uploadId);
+          console.log(`[Upload ${uploadId}] Arquivo parseado:`, {
+            contasAPagar: parsedData.contasAPagar.length,
+            contasAReceber: parsedData.contasAReceber.length,
+            folhaPagamento: parsedData.folhaPagamento.length,
+            saldosBancarios: parsedData.saldosBancarios.length,
+          });
 
           // Inserir dados no banco
+          console.log(`[Upload ${uploadId}] Inserindo dados no banco...`);
           await upsertPlanoContas(parsedData.planoContas);
+          console.log(`[Upload ${uploadId}] Plano de contas inserido`);
+          
           await upsertCentrosCusto(parsedData.centrosCusto);
+          console.log(`[Upload ${uploadId}] Centros de custo inseridos`);
+          
           await upsertFornecedores(parsedData.fornecedores);
+          console.log(`[Upload ${uploadId}] Fornecedores inseridos`);
+          
           await insertContasAPagar(parsedData.contasAPagar);
+          console.log(`[Upload ${uploadId}] Contas a pagar inseridas`);
+          
           await insertContasAReceber(parsedData.contasAReceber);
+          console.log(`[Upload ${uploadId}] Contas a receber inseridas`);
+          
           await insertFolhaPagamento(parsedData.folhaPagamento);
+          console.log(`[Upload ${uploadId}] Folha de pagamento inserida`);
+          
           await insertSaldosBancarios(parsedData.saldosBancarios);
+          console.log(`[Upload ${uploadId}] Saldos bancários inseridos`);
 
           // Atualizar status do upload
           await updateUploadStatus(uploadId, "completed");
+          console.log(`[Upload ${uploadId}] Processamento concluído com sucesso!`);
 
           return { success: true, uploadId };
         } catch (error) {
@@ -85,10 +110,14 @@ export const appRouter = router({
 
     // Obter resumo do DRE
     getDRESummary: protectedProcedure
-      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .input(z.object({ 
+        uploadId: z.number(), 
+        mes: z.number().optional().nullable(),
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+      }))
       .query(async ({ input }) => {
         const { getDRESummary } = await import("./db-financial");
-        return getDRESummary(input.uploadId, input.mes ?? null);
+        return getDRESummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao);
       }),
 
     // Obter DRE de todos os meses (para tabela horizontal)
