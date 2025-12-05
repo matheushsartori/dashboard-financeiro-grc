@@ -12,18 +12,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- PASSO DE BUILD NO GITHUB ACTIONS (Necessário para gerar a pasta 'dist') ---
-      # Você deve adicionar aqui os passos para instalar dependências e fazer o build
-      # Exemplo:
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      # - name: Install Dependencies
-      #   run: npm install
-      # - name: Build Project
-      #   run: npm run build
-      # -----------------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile --no-optional=false
+      
+      - name: Build Project
+        run: pnpm run build
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
