@@ -54,12 +54,41 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/dashboard-financeiro-grc
-            # Para o processo existente se estiver rodando
-            pm2 stop dashboard-grc || true
-            pm2 delete dashboard-grc || true
+            
+            # Verifica e para processos Node.js antigos na porta 3001 que não são do PM2
+            echo "Verificando processos na porta 3001..."
+            PORT_3001_PID=$(lsof -ti:3001 2>/dev/null || true)
+            if [ ! -z "$PORT_3001_PID" ]; then
+              echo "Processo encontrado na porta 3001 (PID: $PORT_3001_PID)"
+              # Verifica se não é um processo do PM2
+              if ! pm2 list | grep -q "$PORT_3001_PID"; then
+                echo "Parando processo antigo na porta 3001..."
+                kill -9 $PORT_3001_PID 2>/dev/null || true
+                sleep 2
+              fi
+            fi
+            
+            # Para o processo existente no PM2 se estiver rodando
+            echo "Gerenciando processo no PM2..."
+            pm2 stop dashboard-grc 2>/dev/null || true
+            pm2 delete dashboard-grc 2>/dev/null || true
+            
+            # Aguarda um momento para garantir que o processo foi parado
+            sleep 1
+            
             # Inicia o novo processo
+            echo "Iniciando novo processo..."
             pm2 start dist/index.js --name dashboard-grc
+            
+            # Aguarda o processo iniciar
+            sleep 2
+            
+            # Verifica o status
+            pm2 list
+            
             # Salva a configuração do PM2
             pm2 save
-            # Reinicia o PM2 para garantir que o processo persista
-            pm2 startup || true
+            
+            # Mostra logs recentes para debug
+            echo "=== Últimas linhas do log ==="
+            pm2 logs dashboard-grc --lines 10 --nostream || true
