@@ -1,0 +1,66 @@
+# Dependências
+node_modules
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+
+# Build
+dist
+.next
+out
+build
+
+# Desenvolvimento
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentação
+README.md
+*.md
+!SETUP.md
+
+# Testes
+coverage
+.nyc_output
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Outros
+*.bmp
+*.xlsx
+planilha.xlsx
+deploy.yml
+discloud.config
+vercel.json
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+

@@ -16,11 +16,15 @@ if (!DATABASE_URL) {
 
 console.log('Connecting to PostgreSQL with pg driver...');
 
+const useSSL = DATABASE_URL.includes('sslmode=require') || DATABASE_URL.includes('sslmode=prefer');
+
 const client = new Client({
   connectionString: DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ...(useSSL ? {
+    ssl: {
+      rejectUnauthorized: false
+    }
+  } : {})
 });
 
 try {

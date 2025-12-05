@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  # Aplicação Node.js
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dashboard-app
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3010
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    ports:
+      - "${APP_PORT:-3010}:3010"
+    restart: unless-stopped
+    # Executar migrations na inicialização
+    command: sh -c "node apply-migrations-pg.mjs && node dist/index.js"
+
