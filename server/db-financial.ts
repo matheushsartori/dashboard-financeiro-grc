@@ -20,6 +20,43 @@ import {
 
 // ===== UPLOADS =====
 
+// Função para limpar todos os dados financeiros
+export async function clearAllFinancialData() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  console.log("[Clear] Iniciando limpeza de todos os dados financeiros...");
+  
+  try {
+    // Deletar em ordem para respeitar foreign keys (se houver)
+    await db.delete(saldosBancarios);
+    console.log("[Clear] Saldos bancários deletados");
+    
+    await db.delete(folhaPagamento);
+    console.log("[Clear] Folha de pagamento deletada");
+    
+    await db.delete(contasAReceber);
+    console.log("[Clear] Contas a receber deletadas");
+    
+    await db.delete(contasAPagar);
+    console.log("[Clear] Contas a pagar deletadas");
+    
+    await db.delete(uploads);
+    console.log("[Clear] Uploads deletados");
+    
+    // Tabelas de referência (opcional - comentado para manter dados de referência)
+    // await db.delete(fornecedores);
+    // await db.delete(centrosCusto);
+    // await db.delete(planoContas);
+    
+    console.log("[Clear] Limpeza concluída com sucesso!");
+    return { success: true, message: "Todos os dados financeiros foram deletados" };
+  } catch (error) {
+    console.error("[Clear] Erro ao limpar dados:", error);
+    throw error;
+  }
+}
+
 export async function createUpload(data: InsertUpload) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -129,16 +166,77 @@ export async function insertContasAPagar(data: InsertContaAPagar[]) {
 
   if (data.length === 0) return;
 
-  // Inserir em lotes de 500 para melhor performance (aumentado de 100)
-  const batchSize = 500;
-  const totalBatches = Math.ceil(data.length / batchSize);
-  for (let i = 0; i < data.length; i += batchSize) {
-    const batch = data.slice(i, i + batchSize);
-    await db.insert(contasAPagar).values(batch);
-    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
-      console.log(`[Insert] Contas a Pagar: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+  // Validar e limpar dados antes de inserir
+  const validData = data.filter(item => {
+    if (!item.uploadId || item.uploadId <= 0) {
+      console.warn(`[Insert] Contas a Pagar: Registro inválido (sem uploadId):`, item);
+      return false;
+    }
+    return true;
+  });
+
+  if (validData.length === 0) {
+    console.warn(`[Insert] Contas a Pagar: Nenhum registro válido para inserir`);
+    return;
+  }
+
+  // Obter uploadId do primeiro registro válido
+  const uploadId = validData[0].uploadId;
+
+  // Deletar todos os registros existentes deste uploadId antes de inserir
+  console.log(`[Insert] Contas a Pagar: Deletando registros antigos do uploadId ${uploadId}...`);
+  await db.delete(contasAPagar).where(eq(contasAPagar.uploadId, uploadId));
+  console.log(`[Insert] Contas a Pagar: Registros antigos deletados`);
+
+  // Inserir em lotes menores para evitar timeouts (250 registros)
+  const batchSize = 250;
+  const totalBatches = Math.ceil(validData.length / batchSize);
+  let inserted = 0;
+  let errors = 0;
+
+  for (let i = 0; i < validData.length; i += batchSize) {
+    try {
+      const batch = validData.slice(i, i + batchSize);
+      
+      // Timeout de 30 segundos por batch
+      await Promise.race([
+        db.insert(contasAPagar).values(batch),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Timeout ao inserir batch ${i / batchSize + 1}`)), 30000)
+        )
+      ]);
+      
+      inserted += batch.length;
+      
+      if (totalBatches > 1 && (i / batchSize + 1) % 5 === 0) {
+        console.log(`[Insert] Contas a Pagar: ${inserted}/${validData.length} registros inseridos`);
+      }
+    } catch (error) {
+      errors++;
+      console.error(`[Insert] Contas a Pagar: Erro no batch ${i / batchSize + 1}:`, error);
+      
+      // Tentar inserir um por um para identificar o registro problemático
+      if (errors <= 3) {
+        const batch = validData.slice(i, i + batchSize);
+        for (let j = 0; j < batch.length; j++) {
+          try {
+            await db.insert(contasAPagar).values([batch[j]]);
+            inserted++;
+          } catch (singleError) {
+            console.error(`[Insert] Contas a Pagar: Erro ao inserir registro individual:`, {
+              index: i + j,
+              error: singleError instanceof Error ? singleError.message : String(singleError),
+              data: JSON.stringify(batch[j]).substring(0, 200)
+            });
+          }
+        }
+      } else {
+        throw new Error(`Muitos erros ao inserir Contas a Pagar. Parando após ${errors} erros.`);
+      }
     }
   }
+
+  console.log(`[Insert] Contas a Pagar: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
 export async function getContasAPagarByUpload(uploadId: number) {
@@ -304,16 +402,77 @@ export async function insertContasAReceber(data: InsertContaAReceber[]) {
 
   if (data.length === 0) return;
 
-  // Inserir em lotes de 500 para melhor performance (aumentado de 100)
-  const batchSize = 500;
-  const totalBatches = Math.ceil(data.length / batchSize);
-  for (let i = 0; i < data.length; i += batchSize) {
-    const batch = data.slice(i, i + batchSize);
-    await db.insert(contasAReceber).values(batch);
-    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
-      console.log(`[Insert] Contas a Receber: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+  // Validar e limpar dados antes de inserir
+  const validData = data.filter(item => {
+    if (!item.uploadId || item.uploadId <= 0) {
+      console.warn(`[Insert] Contas a Receber: Registro inválido (sem uploadId):`, item);
+      return false;
+    }
+    return true;
+  });
+
+  if (validData.length === 0) {
+    console.warn(`[Insert] Contas a Receber: Nenhum registro válido para inserir`);
+    return;
+  }
+
+  // Obter uploadId do primeiro registro válido
+  const uploadId = validData[0].uploadId;
+
+  // Deletar todos os registros existentes deste uploadId antes de inserir
+  console.log(`[Insert] Contas a Receber: Deletando registros antigos do uploadId ${uploadId}...`);
+  await db.delete(contasAReceber).where(eq(contasAReceber.uploadId, uploadId));
+  console.log(`[Insert] Contas a Receber: Registros antigos deletados`);
+
+  // Inserir em lotes menores para evitar timeouts (250 registros)
+  const batchSize = 250;
+  const totalBatches = Math.ceil(validData.length / batchSize);
+  let inserted = 0;
+  let errors = 0;
+
+  for (let i = 0; i < validData.length; i += batchSize) {
+    try {
+      const batch = validData.slice(i, i + batchSize);
+      
+      // Timeout de 30 segundos por batch
+      await Promise.race([
+        db.insert(contasAReceber).values(batch),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Timeout ao inserir batch ${i / batchSize + 1}`)), 30000)
+        )
+      ]);
+      
+      inserted += batch.length;
+      
+      if (totalBatches > 1 && (i / batchSize + 1) % 5 === 0) {
+        console.log(`[Insert] Contas a Receber: ${inserted}/${validData.length} registros inseridos`);
+      }
+    } catch (error) {
+      errors++;
+      console.error(`[Insert] Contas a Receber: Erro no batch ${i / batchSize + 1}:`, error);
+      
+      // Tentar inserir um por um para identificar o registro problemático
+      if (errors <= 3) {
+        const batch = validData.slice(i, i + batchSize);
+        for (let j = 0; j < batch.length; j++) {
+          try {
+            await db.insert(contasAReceber).values([batch[j]]);
+            inserted++;
+          } catch (singleError) {
+            console.error(`[Insert] Contas a Receber: Erro ao inserir registro individual:`, {
+              index: i + j,
+              error: singleError instanceof Error ? singleError.message : String(singleError),
+              data: JSON.stringify(batch[j]).substring(0, 200)
+            });
+          }
+        }
+      } else {
+        throw new Error(`Muitos erros ao inserir Contas a Receber. Parando após ${errors} erros.`);
+      }
     }
   }
+
+  console.log(`[Insert] Contas a Receber: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
 export async function getContasAReceberByUpload(uploadId: number, mes?: number | null) {
@@ -479,16 +638,132 @@ export async function insertFolhaPagamento(data: InsertFolhaPagamento[]) {
 
   if (data.length === 0) return;
 
-  // Inserir em lotes de 500 para melhor performance
-  const batchSize = 500;
-  const totalBatches = Math.ceil(data.length / batchSize);
-  for (let i = 0; i < data.length; i += batchSize) {
-    const batch = data.slice(i, i + batchSize);
-    await db.insert(folhaPagamento).values(batch);
-    if (totalBatches > 1 && (i / batchSize + 1) % 10 === 0) {
-      console.log(`[Insert] Folha de Pagamento: ${Math.min(i + batchSize, data.length)}/${data.length} registros inseridos`);
+  // Validar e limpar dados antes de inserir
+  const validData = data.filter(item => {
+    if (!item.uploadId || item.uploadId <= 0) {
+      console.warn(`[Insert] Folha: Registro inválido (sem uploadId):`, item);
+      return false;
+    }
+    if (!item.nome || item.nome.trim() === "") {
+      console.warn(`[Insert] Folha: Registro inválido (sem nome):`, item);
+      return false;
+    }
+    return true;
+  });
+
+  if (validData.length === 0) {
+    console.warn(`[Insert] Folha: Nenhum registro válido para inserir`);
+    return;
+  }
+
+  // Obter uploadId do primeiro registro válido
+  const uploadId = validData[0].uploadId;
+
+  // Deletar todos os registros existentes deste uploadId antes de inserir
+  console.log(`[Insert] Folha: Deletando registros antigos do uploadId ${uploadId}...`);
+  await db.delete(folhaPagamento).where(eq(folhaPagamento.uploadId, uploadId));
+  console.log(`[Insert] Folha: Registros antigos deletados`);
+
+  // Inserir em lotes menores para evitar timeouts (250 registros)
+  const batchSize = 250;
+  const totalBatches = Math.ceil(validData.length / batchSize);
+  let inserted = 0;
+  let errors = 0;
+
+  // Tentar adicionar a coluna tipo_vinculo se não existir (fallback)
+  try {
+    await db.execute(sql`ALTER TABLE "folha_pagamento" ADD COLUMN IF NOT EXISTS "tipo_vinculo" varchar(10);`);
+    console.log(`[Insert] Folha: Coluna tipo_vinculo verificada/criada`);
+  } catch (alterError: unknown) {
+    // Ignorar erro se coluna já existe ou se não tiver permissão
+    const errorMessage = alterError instanceof Error ? alterError.message : String(alterError);
+    if (!errorMessage.includes('already exists') && !errorMessage.includes('duplicate')) {
+      console.warn(`[Insert] Folha: Não foi possível criar coluna tipo_vinculo (pode já existir):`, errorMessage);
     }
   }
+
+  for (let i = 0; i < validData.length; i += batchSize) {
+    try {
+      const batch = validData.slice(i, i + batchSize);
+      
+      // Timeout de 30 segundos por batch
+      await Promise.race([
+        db.insert(folhaPagamento).values(batch),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Timeout ao inserir batch ${i / batchSize + 1}`)), 30000)
+        )
+      ]);
+      
+      inserted += batch.length;
+      
+      if (totalBatches > 1 && (i / batchSize + 1) % 5 === 0) {
+        console.log(`[Insert] Folha de Pagamento: ${inserted}/${validData.length} registros inseridos`);
+      }
+    } catch (error: any) {
+      errors++;
+      const errorMessage = error?.message || String(error);
+      console.error(`[Insert] Folha: Erro no batch ${i / batchSize + 1}:`, errorMessage);
+      
+      // Se o erro for sobre coluna tipo_vinculo não existir, tentar sem esse campo
+      if (errorMessage.includes('tipo_vinculo') && errorMessage.includes('does not exist')) {
+        console.log(`[Insert] Folha: Tentando inserir sem campo tipo_vinculo...`);
+        const batch = validData.slice(i, i + batchSize);
+        const batchWithoutTipoVinculo = batch.map(item => {
+          const { tipoVinculo, ...rest } = item;
+          return rest;
+        });
+        
+        try {
+          await db.insert(folhaPagamento).values(batchWithoutTipoVinculo);
+          inserted += batch.length;
+          console.log(`[Insert] Folha: Batch ${i / batchSize + 1} inserido sem tipo_vinculo`);
+          continue;
+        } catch (retryError) {
+          console.error(`[Insert] Folha: Erro mesmo sem tipo_vinculo:`, retryError);
+        }
+      }
+      
+      // Tentar inserir um por um para identificar o registro problemático
+      if (errors <= 3) {
+        const batch = validData.slice(i, i + batchSize);
+        for (let j = 0; j < batch.length; j++) {
+          try {
+            await db.insert(folhaPagamento).values([batch[j]]);
+            inserted++;
+          } catch (singleError: any) {
+            // Se erro for sobre tipo_vinculo, tentar sem esse campo
+            const singleErrorMessage = singleError?.message || String(singleError);
+            if (singleErrorMessage.includes('tipo_vinculo') && singleErrorMessage.includes('does not exist')) {
+              try {
+                const { tipoVinculo, ...itemWithoutTipoVinculo } = batch[j];
+                await db.insert(folhaPagamento).values([itemWithoutTipoVinculo]);
+                inserted++;
+                console.log(`[Insert] Folha: Registro ${i + j} inserido sem tipo_vinculo`);
+              } catch (retryError) {
+                console.error(`[Insert] Folha: Erro ao inserir registro individual (sem tipo_vinculo):`, {
+                  index: i + j,
+                  error: retryError instanceof Error ? retryError.message : String(retryError),
+                  nome: batch[j].nome,
+                  uploadId: batch[j].uploadId
+                });
+              }
+            } else {
+              console.error(`[Insert] Folha: Erro ao inserir registro individual:`, {
+                index: i + j,
+                error: singleErrorMessage,
+                nome: batch[j].nome,
+                uploadId: batch[j].uploadId
+              });
+            }
+          }
+        }
+      } else {
+        throw new Error(`Muitos erros ao inserir Folha de Pagamento. Parando após ${errors} erros.`);
+      }
+    }
+  }
+
+  console.log(`[Insert] Folha de Pagamento: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
 export async function getFolhaPagamentoByUpload(uploadId: number) {
@@ -536,7 +811,36 @@ export async function insertSaldosBancarios(data: any[]) {
 
   if (data.length === 0) return;
 
-  await db.insert(saldosBancarios).values(data);
+  // Validar e limpar dados antes de inserir
+  const validData = data.filter(item => {
+    if (!item.uploadId || item.uploadId <= 0) {
+      console.warn(`[Insert] Saldos Bancários: Registro inválido (sem uploadId):`, item);
+      return false;
+    }
+    return true;
+  });
+
+  if (validData.length === 0) {
+    console.warn(`[Insert] Saldos Bancários: Nenhum registro válido para inserir`);
+    return;
+  }
+
+  // Obter uploadId do primeiro registro válido
+  const uploadId = validData[0].uploadId;
+
+  // Deletar todos os registros existentes deste uploadId antes de inserir
+  console.log(`[Insert] Saldos Bancários: Deletando registros antigos do uploadId ${uploadId}...`);
+  await db.delete(saldosBancarios).where(eq(saldosBancarios.uploadId, uploadId));
+  console.log(`[Insert] Saldos Bancários: Registros antigos deletados`);
+
+  try {
+    // Saldos bancários geralmente são poucos registros, pode inserir tudo de uma vez
+    await db.insert(saldosBancarios).values(validData);
+    console.log(`[Insert] Saldos Bancários: ${validData.length} registros inseridos`);
+  } catch (error) {
+    console.error(`[Insert] Saldos Bancários: Erro ao inserir:`, error);
+    throw error;
+  }
 }
 
 export async function getSaldosBancariosByUpload(uploadId: number) {

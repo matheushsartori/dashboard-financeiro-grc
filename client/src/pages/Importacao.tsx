@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
 
 export default function Importacao() {
@@ -13,6 +14,19 @@ export default function Importacao() {
   const [dragActive, setDragActive] = useState(false);
 
   const utils = trpc.useUtils();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  
+  const clearMutation = trpc.financial.clearAllData.useMutation({
+    onSuccess: () => {
+      toast.success("Todos os dados foram limpos com sucesso!");
+      utils.financial.listUploads.invalidate();
+      setShowClearConfirm(false);
+    },
+    onError: (error) => {
+      toast.error(`Erro ao limpar dados: ${error.message}`);
+    },
+  });
+
   const uploadMutation = trpc.financial.uploadExcel.useMutation({
     onSuccess: (data) => {
       toast.success("Arquivo importado com sucesso!");
@@ -111,6 +125,47 @@ export default function Importacao() {
           </p>
         </div>
 
+        {/* Alerta de limpeza */}
+        {showClearConfirm && (
+          <Alert className="mb-6 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertTitle className="text-yellow-800">Atenção!</AlertTitle>
+            <AlertDescription className="text-yellow-700">
+              Esta ação irá deletar TODOS os dados financeiros importados. Esta ação não pode ser desfeita.
+              <div className="mt-4 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => {
+                    clearMutation.mutate();
+                  }}
+                  disabled={clearMutation.isPending}
+                >
+                  {clearMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Limpando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Sim, limpar tudo
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={clearMutation.isPending}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2">
           {/* Upload Area */}
           <Card>
@@ -185,10 +240,25 @@ export default function Importacao() {
           {/* Upload History */}
           <Card>
             <CardHeader>
-              <CardTitle>Histórico de Importações</CardTitle>
-              <CardDescription>
-                Arquivos importados anteriormente
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Histórico de Importações</CardTitle>
+                  <CardDescription>
+                    Arquivos importados anteriormente
+                  </CardDescription>
+                </div>
+                {uploads && uploads.length > 0 && !showClearConfirm && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Limpar Tudo
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {loadingUploads ? (
