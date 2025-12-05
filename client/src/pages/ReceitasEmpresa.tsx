@@ -54,7 +54,8 @@ export default function ReceitasEmpresa() {
     }
 
     const totalValor = receitas.reduce((sum, r) => sum + (r.valor || 0), 0);
-    const totalRecebido = receitas.reduce((sum, r) => sum + (r.valorRecebido || r.valor || 0), 0);
+    // Apenas valores realmente recebidos (valorRecebido > 0)
+    const totalRecebido = receitas.reduce((sum, r) => sum + (r.valorRecebido || 0), 0);
     const quantidade = receitas.length;
     const media = quantidade > 0 ? totalRecebido / quantidade : 0;
     

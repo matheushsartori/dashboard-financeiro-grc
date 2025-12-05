@@ -74,10 +74,13 @@ export const appRouter = router({
 
     // Obter resumo do dashboard
     getDashboardSummary: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+      }))
       .query(async ({ input }) => {
         const { getDashboardSummary } = await import("./db-financial");
-        return getDashboardSummary(input.uploadId);
+        return getDashboardSummary(input.uploadId, input.tipoVisualizacao);
       }),
 
     // Obter resumo do DRE
@@ -114,11 +117,14 @@ export const appRouter = router({
 
     // Obter resumo de contas a pagar
     getContasAPagarSummary: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+      }))
       .query(async ({ input }) => {
         const { getContasAPagarSummary, getTopFornecedores, getDespesasPorCategoria, getDespesasPorCentroCusto } = await import("./db-financial");
         const [summary, topFornecedores, despesasCategoria, despesasCentroCusto] = await Promise.all([
-          getContasAPagarSummary(input.uploadId),
+          getContasAPagarSummary(input.uploadId, input.tipoVisualizacao),
           getTopFornecedores(input.uploadId, 10),
           getDespesasPorCategoria(input.uploadId),
           getDespesasPorCentroCusto(input.uploadId),
@@ -152,11 +158,15 @@ export const appRouter = router({
 
     // Obter resumo de contas a receber
     getContasAReceberSummary: protectedProcedure
-      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .input(z.object({ 
+        uploadId: z.number(), 
+        mes: z.number().optional().nullable(),
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+      }))
       .query(async ({ input }) => {
         const { getContasAReceberSummary, getTopClientes } = await import("./db-financial");
         const [summary, topClientes] = await Promise.all([
-          getContasAReceberSummary(input.uploadId, input.mes ?? null),
+          getContasAReceberSummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao),
           getTopClientes(input.uploadId, 10),
         ]);
         return { summary, topClientes };

@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, desc, sql, asc } from "drizzle-orm";
+import { eq, and, or, gte, lte, gt, desc, sql, asc, isNull, isNotNull } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   uploads,
@@ -144,9 +144,34 @@ export async function getContasAPagarByUpload(uploadId: number) {
   return db.select().from(contasAPagar).where(eq(contasAPagar.uploadId, uploadId));
 }
 
-export async function getContasAPagarSummary(uploadId: number) {
+export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
   const db = await getDb();
   if (!db) return null;
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  let whereCondition = eq(contasAPagar.uploadId, uploadId);
+
+  if (tipoVisualizacao === "realizado") {
+    // Apenas pagamentos com data de pagamento <= hoje ou sem data de pagamento mas com valorPago > 0
+    whereCondition = and(
+      eq(contasAPagar.uploadId, uploadId),
+      or(
+        and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
+        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} > 0`)
+      )
+    );
+  } else if (tipoVisualizacao === "projetado") {
+    // Apenas pagamentos com data de pagamento > hoje ou sem data de pagamento mas sem valor pago
+    whereCondition = and(
+      eq(contasAPagar.uploadId, uploadId),
+      or(
+        and(isNotNull(contasAPagar.dataPagamento), gt(contasAPagar.dataPagamento, hoje)),
+        and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} = 0`, sql`${contasAPagar.valor} > 0`)
+      )
+    );
+  }
 
   const result = await db
     .select({
@@ -155,7 +180,7 @@ export async function getContasAPagarSummary(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAPagar)
-    .where(eq(contasAPagar.uploadId, uploadId));
+    .where(whereCondition);
 
   return result[0];
 }
@@ -288,19 +313,50 @@ export async function getContasAReceberByUpload(uploadId: number, mes?: number |
   return db.select().from(contasAReceber).where(eq(contasAReceber.uploadId, uploadId));
 }
 
-export async function getContasAReceberSummary(uploadId: number, mes?: number | null) {
+export async function getContasAReceberSummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
   const db = await getDb();
   if (!db) return null;
 
-  // Filtrar por mês se fornecido
-  const whereCondition = mes !== null && mes !== undefined
-    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
-    : eq(contasAReceber.uploadId, uploadId);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
 
+  // Filtrar por mês se fornecido
+  let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
+  }
+
+  // Filtrar por tipo de visualização
+  if (tipoVisualizacao === "realizado") {
+    // Apenas recebimentos REALMENTE recebidos: valorRecebido > 0 E dataRecebimento <= hoje
+    whereCondition = and(
+      whereCondition,
+      sql`${contasAReceber.valorRecebido} > 0`,
+      or(
+        and(isNotNull(contasAReceber.dataRecebimento), lte(contasAReceber.dataRecebimento, hoje)),
+        isNull(contasAReceber.dataRecebimento)
+      )
+    );
+  } else if (tipoVisualizacao === "projetado") {
+    // Apenas recebimentos projetados: sem valor recebido ou com data futura
+    whereCondition = and(
+      whereCondition,
+      or(
+        sql`${contasAReceber.valorRecebido} = 0`,
+        and(isNotNull(contasAReceber.dataRecebimento), gt(contasAReceber.dataRecebimento, hoje))
+      ),
+      sql`${contasAReceber.valor} > 0`
+    );
+  }
+
+  // Para o cálculo, sempre usar apenas valorRecebido quando for "realizado"
   const result = await db
     .select({
       totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
-      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+      totalRecebido: tipoVisualizacao === "realizado" 
+        ? sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`
+        : sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
@@ -313,15 +369,21 @@ export async function getTopClientes(uploadId: number, limit: number = 10) {
   const db = await getDb();
   if (!db) return [];
 
+  // Apenas valores realmente recebidos (valorRecebido > 0)
   return db
     .select({
       cliente: contasAReceber.cliente,
-      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
     })
     .from(contasAReceber)
-    .where(eq(contasAReceber.uploadId, uploadId))
+    .where(
+      and(
+        eq(contasAReceber.uploadId, uploadId),
+        sql`${contasAReceber.valorRecebido} > 0`
+      )
+    )
     .groupBy(contasAReceber.cliente)
-    .orderBy(desc(sql`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`))
+    .orderBy(desc(sql`SUM(${contasAReceber.valorRecebido})`))
     .limit(limit);
 }
 
@@ -329,22 +391,30 @@ export async function getReceitasPorEmpresa(uploadId: number, mes?: number | nul
   const db = await getDb();
   if (!db) return [];
 
-  const whereCondition = mes !== null && mes !== undefined
-    ? and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes))
-    : eq(contasAReceber.uploadId, uploadId);
+  let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
+  }
+
+  // Apenas valores realmente recebidos (valorRecebido > 0)
+  whereCondition = and(
+    whereCondition,
+    sql`${contasAReceber.valorRecebido} > 0`
+  );
 
   const result = await db
     .select({
       cliente: contasAReceber.cliente,
       quantidadePagamentos: sql<number>`COUNT(*)`,
-      totalPagamentos: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`,
-      mediaPagamentos: sql<number>`COALESCE(AVG(${contasAReceber.valorRecebido}), AVG(${contasAReceber.valor}), 0)`,
+      totalPagamentos: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+      mediaPagamentos: sql<number>`COALESCE(AVG(${contasAReceber.valorRecebido}), 0)`,
       ultimoPagamento: sql<Date | null>`MAX(${contasAReceber.dataRecebimento})`,
     })
     .from(contasAReceber)
     .where(whereCondition)
     .groupBy(contasAReceber.cliente)
-    .orderBy(desc(sql`COALESCE(SUM(${contasAReceber.valorRecebido}), SUM(${contasAReceber.valor}), 0)`));
+    .orderBy(desc(sql`SUM(${contasAReceber.valorRecebido})`));
 
   return result.map(r => ({
     cliente: r.cliente || "Sem nome",
@@ -460,13 +530,13 @@ export async function getSaldosBancariosSummary(uploadId: number) {
 
 // ===== DASHBOARD SUMMARY =====
 
-export async function getDashboardSummary(uploadId: number) {
+export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
   const db = await getDb();
   if (!db) return null;
 
   const [contasPagar, contasReceber, folha, saldos] = await Promise.all([
-    getContasAPagarSummary(uploadId),
-    getContasAReceberSummary(uploadId),
+    getContasAPagarSummary(uploadId, tipoVisualizacao),
+    getContasAReceberSummary(uploadId, undefined, tipoVisualizacao),
     getFolhaPagamentoSummary(uploadId),
     getSaldosBancariosSummary(uploadId),
   ]);
@@ -560,7 +630,7 @@ export async function getDadosMensais(uploadId: number) {
   const db = await getDb();
   if (!db) return null;
 
-  // Buscar receitas por mês
+  // Buscar receitas por mês - apenas valores realmente recebidos
   const receitasPorMes = await db
     .select({
       mes: contasAReceber.mes,
@@ -569,7 +639,12 @@ export async function getDadosMensais(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
-    .where(eq(contasAReceber.uploadId, uploadId))
+    .where(
+      and(
+        eq(contasAReceber.uploadId, uploadId),
+        sql`${contasAReceber.valorRecebido} > 0`
+      )
+    )
     .groupBy(contasAReceber.mes)
     .orderBy(asc(contasAReceber.mes));
 

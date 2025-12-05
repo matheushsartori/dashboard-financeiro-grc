@@ -4,8 +4,9 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
+import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
 
   const { data: uploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -31,17 +33,17 @@ export default function Dashboard() {
   }, [uploadId, uploads]);
 
   const { data: summary, isLoading } = trpc.financial.getDashboardSummary.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
   const { data: contasPagarData } = trpc.financial.getContasAPagarSummary.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
   const { data: contasReceberData } = trpc.financial.getContasAReceberSummary.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, tipoVisualizacao },
     { enabled: !!latestUpload }
   );
 
@@ -110,10 +112,10 @@ export default function Dashboard() {
     );
   }
 
-  // CORRIGIDO: Usar totalValor se totalRecebido for 0 ou null
+  // Apenas valores realmente recebidos (valorRecebido > 0)
   const totalReceitasValor = summary?.contasReceber?.totalValor || 0;
   const totalReceitasRecebido = summary?.contasReceber?.totalRecebido || 0;
-  const totalReceitas = totalReceitasRecebido > 0 ? totalReceitasRecebido : totalReceitasValor;
+  const totalReceitas = totalReceitasRecebido; // Sempre usar apenas valores recebidos
   
   const totalDespesas = summary?.contasPagar?.totalPago || 0;
   const totalFolha = summary?.folha?.totalFolha || 0;
@@ -149,14 +151,19 @@ export default function Dashboard() {
 
   return (
     <div className="container max-w-7xl py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Dashboard Financeiro</h1>
-            <p className="text-muted-foreground">
-              Visão geral dos dados financeiros importados
-            </p>
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Dashboard Financeiro</h1>
+              <p className="text-muted-foreground">
+                Visão geral dos dados financeiros importados
+              </p>
+            </div>
           </div>
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <div className="flex items-center gap-4 flex-wrap">
+            <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+            <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
+          </div>
         </div>
 
         {selectedMonth && (

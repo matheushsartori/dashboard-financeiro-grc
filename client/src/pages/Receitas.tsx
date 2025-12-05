@@ -68,8 +68,11 @@ export default function Receitas() {
     const clienteMap = new Map<string, number>();
     filteredReceitas.forEach(r => {
       const cliente = r.cliente || "Sem nome";
-      const valor = r.valorRecebido || r.valor || 0;
-      clienteMap.set(cliente, (clienteMap.get(cliente) || 0) + valor);
+      // Apenas valores realmente recebidos (valorRecebido > 0)
+      const valor = r.valorRecebido || 0;
+      if (valor > 0) {
+        clienteMap.set(cliente, (clienteMap.get(cliente) || 0) + valor);
+      }
     });
 
     return Array.from(clienteMap.entries())
@@ -104,8 +107,9 @@ export default function Receitas() {
   }
 
   // Usar dados do summary que já vem filtrado do backend
+  // IMPORTANTE: totalRecebido deve ser apenas valores realmente recebidos (valorRecebido > 0)
   const totalValor = summary?.summary?.totalValor || 0;
-  const totalRecebido = summary?.summary?.totalRecebido || totalValor;
+  const totalRecebido = summary?.summary?.totalRecebido || 0; // Apenas valores recebidos, sem fallback
   const totalRegistros = summary?.summary?.totalRegistros || 0;
 
   return (
@@ -187,10 +191,10 @@ export default function Receitas() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {totalValor ? `${((totalRecebido / totalValor) * 100).toFixed(1)}%` : "0%"}
+                    {totalValor > 0 ? `${Math.min(((totalRecebido / totalValor) * 100), 100).toFixed(1)}%` : "0%"}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Percentual recebido
+                    Percentual recebido (apenas valores recebidos)
                   </p>
                 </CardContent>
               </Card>
