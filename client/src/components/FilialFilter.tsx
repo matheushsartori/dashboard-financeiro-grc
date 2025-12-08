@@ -15,7 +15,10 @@ export interface FilialFilterProps {
 export function FilialFilter({ value, onChange, label = "Filtrar por escopo", uploadId }: FilialFilterProps) {
   const { data: filiais, isLoading } = trpc.financial.getFiliaisDisponiveis.useQuery(
     { uploadId: uploadId! },
-    { enabled: !!uploadId }
+    { 
+      enabled: !!uploadId,
+      staleTime: 5 * 60 * 1000, // Cache de 5 minutos
+    }
   );
 
   if (isLoading) {
@@ -27,13 +30,14 @@ export function FilialFilter({ value, onChange, label = "Filtrar por escopo", up
     );
   }
 
+  // Garantir que sempre temos pelo menos a opção consolidado
   const opcoes = [
     { value: "consolidado", label: "Consolidado GRC (Matriz + Todas as Filiais)", codFilial: null },
-    ...(filiais || []).map((filial) => ({
+    ...(filiais && filiais.length > 0 ? filiais.map((filial) => ({
       value: filial.codigo.toString(),
       label: `${filial.nome} - Filial ${filial.codigo}`,
       codFilial: filial.codigo,
-    })),
+    })) : []),
   ];
 
   return (

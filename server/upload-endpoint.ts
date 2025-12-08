@@ -11,6 +11,7 @@ import {
   insertContasAReceber,
   insertFolhaPagamento,
   insertSaldosBancarios,
+  upsertFiliaisFromData,
 } from "./db-financial";
 
 // Configurar multer para armazenar arquivo em memória
@@ -79,6 +80,11 @@ async function processFileAsync(uploadId: number, buffer: Buffer) {
     await upsertFornecedores(parsedData.fornecedores);
     await insertContasAPagar(parsedData.contasAPagar);
     await insertContasAReceber(parsedData.contasAReceber);
+    
+    // Identificar e cadastrar filiais automaticamente
+    await upsertFiliaisFromData(parsedData.contasAPagar, parsedData.contasAReceber);
+    console.log(`[Upload] Filiais identificadas e cadastradas`);
+    
     await insertFolhaPagamento(parsedData.folhaPagamento);
     await insertSaldosBancarios(parsedData.saldosBancarios);
 

@@ -28,6 +28,131 @@ function buildFilialFilter(codFilial: number[] | null | undefined, field: any) {
   return inArray(field, codFilial);
 }
 
+// Função para garantir que a tabela de filiais existe
+export async function ensureFiliaisTableExists() {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[ensureFiliaisTableExists] DB não disponível");
+    return false;
+  }
+
+  try {
+    // Tentar fazer uma query simples na tabela para verificar se existe
+    try {
+      await db.select().from(filiais).limit(1);
+      // Se chegou aqui, a tabela existe
+      console.log("[ensureFiliaisTableExists] Tabela filiais já existe");
+      return true;
+    } catch (error: any) {
+      // Se a tabela não existe, o erro será sobre tabela não encontrada
+      if (error?.code === '42P01' || error?.message?.includes('does not exist') || error?.message?.includes('relation') && error?.message?.includes('does not exist')) {
+        console.log("[ensureFiliaisTableExists] Tabela filiais não existe, criando...");
+        
+        // Criar a tabela usando SQL direto
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS "filiais" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "codigo" integer NOT NULL UNIQUE,
+            "nome" varchar(255) NOT NULL
+          );
+        `);
+
+        // Criar índice
+        await db.execute(sql`
+          CREATE INDEX IF NOT EXISTS "filiais_codigo_idx" ON "filiais" ("codigo");
+        `);
+
+        console.log("[ensureFiliaisTableExists] Tabela filiais criada com sucesso!");
+        return true;
+      } else {
+        // Outro tipo de erro, relançar
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error("[ensureFiliaisTableExists] Erro ao verificar/criar tabela filiais:", error);
+    return false;
+  }
+}
+
+// Função para identificar e cadastrar filiais automaticamente durante a importação
+export async function upsertFiliaisFromData(contasAPagar: InsertContaAPagar[], contasAReceber: InsertContaAReceber[]) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[upsertFiliaisFromData] DB não disponível");
+    return;
+  }
+
+  // Garantir que a tabela existe antes de usar
+  await ensureFiliaisTableExists();
+
+  // Extrair todos os codFilial únicos dos dados
+  const filiaisEncontradas = new Set<number>();
+  
+  contasAPagar.forEach(item => {
+    if (item.codFilial && item.codFilial > 0) {
+      filiaisEncontradas.add(item.codFilial);
+    }
+  });
+  
+  contasAReceber.forEach(item => {
+    if (item.codFilial && item.codFilial > 0) {
+      filiaisEncontradas.add(item.codFilial);
+    }
+  });
+
+  if (filiaisEncontradas.size === 0) {
+    console.log("[upsertFiliaisFromData] Nenhuma filial encontrada nos dados");
+    return;
+  }
+
+  console.log(`[upsertFiliaisFromData] Filiais encontradas: ${Array.from(filiaisEncontradas).sort((a, b) => a - b).join(", ")}`);
+
+  // Mapeamento de nomes padrão conhecidos
+  const nomesPadrao: Record<number, string> = {
+    1: "Matriz (RP)",
+    3: "Sul",
+    4: "BH",
+  };
+
+  // Para cada filial encontrada, criar ou atualizar na tabela
+  const filiaisArray = Array.from(filiaisEncontradas).sort((a, b) => a - b);
+  for (const codigo of filiaisArray) {
+    const nome = nomesPadrao[codigo] || `Filial ${codigo}`;
+    
+    try {
+      // Verificar se já existe
+      const existente = await db
+        .select()
+        .from(filiais)
+        .where(eq(filiais.codigo, codigo))
+        .limit(1);
+
+      if (existente.length > 0) {
+        // Se existe mas o nome mudou, atualizar
+        if (existente[0].nome !== nome && nomesPadrao[codigo]) {
+          await db
+            .update(filiais)
+            .set({ nome })
+            .where(eq(filiais.codigo, codigo));
+          console.log(`[upsertFiliaisFromData] Filial ${codigo} atualizada: ${nome}`);
+        }
+      } else {
+        // Criar nova filial
+        await db.insert(filiais).values({
+          codigo,
+          nome,
+        });
+        console.log(`[upsertFiliaisFromData] Filial ${codigo} criada: ${nome}`);
+      }
+    } catch (error) {
+      console.error(`[upsertFiliaisFromData] Erro ao processar filial ${codigo}:`, error);
+    }
+  }
+
+  console.log(`[upsertFiliaisFromData] Processamento concluído - ${filiaisEncontradas.size} filiais processadas`);
+}
+
 // ===== UPLOADS =====
 
 // Função para limpar todos os dados financeiros
@@ -53,6 +178,21 @@ export async function clearAllFinancialData() {
     
     await db.delete(uploads);
     console.log("[Clear] Uploads deletados");
+    
+    // Limpar também a tabela de filiais para que sejam recriadas na próxima importação
+    // Verificar se a tabela existe antes de tentar deletar
+    try {
+      await db.delete(filiais);
+      console.log("[Clear] Filiais deletadas");
+    } catch (error: any) {
+      // Se a tabela não existir, apenas logar e continuar
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        console.log("[Clear] Tabela de filiais não existe, pulando...");
+      } else {
+        // Se for outro erro, relançar
+        throw error;
+      }
+    }
     
     // Tabelas de referência (opcional - comentado para manter dados de referência)
     // await db.delete(fornecedores);
@@ -1432,7 +1572,25 @@ export async function getFiliaisDisponiveis(uploadId: number) {
   const db = await getDb();
   if (!db) return [];
 
-  // Buscar filiais únicas de contas a pagar e receber
+  // Garantir que a tabela existe antes de usar
+  await ensureFiliaisTableExists();
+
+  // Buscar todas as filiais cadastradas na tabela de filiais
+  // As filiais são cadastradas automaticamente durante a importação
+  const filiaisCadastradas = await db
+    .select()
+    .from(filiais)
+    .orderBy(asc(filiais.codigo));
+
+  // Se houver filiais cadastradas, retornar elas
+  if (filiaisCadastradas.length > 0) {
+    return filiaisCadastradas.map(f => ({
+      codigo: f.codigo,
+      nome: f.nome,
+    }));
+  }
+
+  // Caso contrário, buscar filiais únicas de contas a pagar e receber
   const [filiaisPagar, filiaisReceber] = await Promise.all([
     db
       .selectDistinct({ codFilial: contasAPagar.codFilial })
@@ -1458,6 +1616,30 @@ export async function getFiliaisDisponiveis(uploadId: number) {
   const todasFiliais = new Set<number>();
   filiaisPagar.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
   filiaisReceber.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
+
+  // Se não encontrou filiais nos dados, retornar filiais padrão conhecidas
+  // (fallback caso a importação não tenha cadastrado as filiais)
+  if (todasFiliais.size === 0) {
+    const filiaisPadrao = [
+      { codigo: 1, nome: "Matriz (RP)" },
+      { codigo: 3, nome: "Sul" },
+      { codigo: 4, nome: "BH" },
+    ];
+    
+    // Criar essas filiais na tabela para uso futuro
+    for (const filial of filiaisPadrao) {
+      try {
+        await db.insert(filiais).values({
+          codigo: filial.codigo,
+          nome: filial.nome,
+        });
+      } catch (error) {
+        // Ignorar se já existir
+      }
+    }
+    
+    return filiaisPadrao;
+  }
 
   // Buscar nomes das filiais da tabela ou criar com nomes padrão
   const filiaisComNomes = await Promise.all(

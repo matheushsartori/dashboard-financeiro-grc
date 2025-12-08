@@ -70,6 +70,11 @@ export const appRouter = router({
           await insertContasAReceber(parsedData.contasAReceber);
           console.log(`[Upload ${uploadId}] Contas a receber inseridas`);
           
+          // Identificar e cadastrar filiais automaticamente
+          const { upsertFiliaisFromData } = await import("./db-financial");
+          await upsertFiliaisFromData(parsedData.contasAPagar, parsedData.contasAReceber);
+          console.log(`[Upload ${uploadId}] Filiais identificadas e cadastradas`);
+          
           await insertFolhaPagamento(parsedData.folhaPagamento);
           console.log(`[Upload ${uploadId}] Folha de pagamento inserida`);
           
