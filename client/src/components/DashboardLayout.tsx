@@ -111,6 +111,9 @@ function DashboardLayoutContent({
     { enabled: !!latestUpload }
   );
 
+  // Utils do tRPC para invalidar queries
+  const utils = trpc.useUtils();
+
   // Estado do escopo de filial no header
   const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
     const saved = localStorage.getItem("selectedFilial");
@@ -119,19 +122,21 @@ function DashboardLayoutContent({
 
   // Atualizar quando mudar no localStorage
   useEffect(() => {
-    const handleStorageChange = () => {
+    const handleFilialChanged = () => {
       const saved = localStorage.getItem("selectedFilial");
-      if (saved) {
+      if (saved && saved !== escopoFilial) {
         setEscopoFilial(saved);
+        // Invalidar queries para forçar refetch com nova filial
+        utils.invalidate();
       }
     };
-    window.addEventListener("storage", handleStorageChange);
-    const interval = setInterval(handleStorageChange, 500);
+    window.addEventListener("storage", handleFilialChanged);
+    window.addEventListener("filialChanged", handleFilialChanged);
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener("storage", handleFilialChanged);
+      window.removeEventListener("filialChanged", handleFilialChanged);
     };
-  }, []);
+  }, [escopoFilial, utils]);
 
   // Handler para mudança de filial no header
   const handleFilialChange = (value: TipoEscopoFilial) => {
@@ -139,6 +144,8 @@ function DashboardLayoutContent({
     setEscopoFilial(value);
     // Disparar evento customizado para atualizar outros componentes
     window.dispatchEvent(new Event("filialChanged"));
+    // Invalidar queries para forçar refetch imediato com nova filial
+    utils.invalidate();
   };
 
   useEffect(() => {

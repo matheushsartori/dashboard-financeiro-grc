@@ -36,26 +36,40 @@ export default function Despesas() {
     return null;
   }, [uploadId, uploads]);
 
+  // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAPagarSummary.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 2 * 60 * 1000, // 2 minutos
+    }
   );
 
+  // Carregar despesas detalhadas em paralelo
   const { data: despesas, isLoading: loadingDespesas } = trpc.financial.getContasAPagar.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
-  // Buscar despesas por fornecedor
+  // Buscar despesas por fornecedor - carregar após summary estar pronto
   const { data: despesasPorFornecedor, isLoading: loadingDespesasPorFornecedor } = trpc.financial.getDespesasPorFornecedor.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   // Buscar despesas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: despesasMensais, isLoading: loadingDespesasMensais } = trpc.financial.getDespesasMensais.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload && !selectedMonth }
+    { 
+      enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
+      staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
+    }
   );
 
   // Combinar todos os estados de loading

@@ -32,28 +32,40 @@ export default function DRE() {
     return null;
   }, [uploadId, uploads]);
 
-  // Buscar dados do DRE (com filtro de mês e tipo de visualização)
+  // Buscar dados do DRE (com filtro de mês e tipo de visualização) - prioridade alta
   const { data: dreData, isLoading: loadingDRE } = trpc.financial.getDRESummary.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 2 * 60 * 1000, // 2 minutos
+    }
   );
 
-  // Buscar dados mensais para gráfico
+  // Buscar dados mensais para gráfico - carregar em paralelo
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 5 * 60 * 1000, // 5 minutos - dados mensais mudam menos
+    }
   );
 
-  // Buscar DRE de todos os meses para tabela horizontal
+  // Buscar DRE de todos os meses para tabela horizontal - carregar após dados principais
   const { data: drePorMeses, isLoading: loadingDREPorMeses } = trpc.financial.getDREPorMeses.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!dreData, // Só carrega após DRE principal estar pronto
+      staleTime: 5 * 60 * 1000,
+    }
   );
 
-  // Buscar dados totais (sem filtro) para comparação
+  // Buscar dados totais (sem filtro) para comparação - só quando necessário
   const { data: dreTotal, isLoading: loadingDRETotal } = trpc.financial.getDRESummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao },
-    { enabled: !!latestUpload && !!selectedMonth } // Só busca total quando há filtro de mês
+    { 
+      enabled: !!latestUpload && !!selectedMonth && !!dreData, // Só busca total quando há filtro de mês e DRE principal pronto
+      staleTime: 2 * 60 * 1000,
+    }
   );
 
   // Combinar todos os estados de loading

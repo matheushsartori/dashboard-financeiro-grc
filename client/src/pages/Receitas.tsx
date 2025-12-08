@@ -36,26 +36,40 @@ export default function Receitas() {
     return null;
   }, [uploadId, uploads]);
 
+  // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAReceberSummary.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 2 * 60 * 1000, // 2 minutos
+    }
   );
 
+  // Carregar receitas detalhadas em paralelo
   const { data: receitas, isLoading: loadingReceitas } = trpc.financial.getContasAReceber.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   // Buscar receitas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: receitasMensais, isLoading: loadingReceitasMensais } = trpc.financial.getReceitasMensais.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload && !selectedMonth }
+    { 
+      enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
+      staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
+    }
   );
 
-  // Buscar receitas por empresa
+  // Buscar receitas por empresa - carregar após summary estar pronto
   const { data: receitasPorEmpresa, isLoading: loadingReceitasPorEmpresa } = trpc.financial.getReceitasPorEmpresa.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   // Combinar todos os estados de loading

@@ -71,16 +71,31 @@ export default function Folha() {
 
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getFolhaPagamentoSummary.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 2 * 60 * 1000, // 2 minutos
+    }
   );
 
   const { data: folha, isLoading: loadingFolha } = trpc.financial.getFolhaPagamento.useQuery(
     { uploadId: latestUpload! },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
+  );
+
+  // Buscar folha separada por tipo (Salário, Comissão, Premiação)
+  const { data: folhaSeparada, isLoading: loadingFolhaSeparada } = trpc.financial.getFolhaPagamentoSeparada.useQuery(
+    { uploadId: latestUpload! },
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   // Combinar todos os estados de loading
-  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha));
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha || loadingFolhaSeparada));
 
   // Separar folha em CLT e PJ (sempre executar, mesmo que folha seja undefined)
   // Usar tipoVinculo do banco se disponível, senão usar heurística
@@ -247,6 +262,44 @@ export default function Folha() {
 
     return { custoPorArea, topFuncionarios };
   };
+
+  // Separar folha CLT por tipo de pagamento
+  const folhaSalario = useMemo(() => {
+    if (!folhaCLT) return [];
+    return folhaCLT.filter(item => 
+      item.tipoPagamento?.toUpperCase().includes('SALÁRIO') || 
+      item.tipoPagamento?.toUpperCase().includes('SALARIO')
+    );
+  }, [folhaCLT]);
+
+  const folhaPremiacao = useMemo(() => {
+    if (!folhaCLT) return [];
+    return folhaCLT.filter(item => 
+      item.tipoPagamento?.toUpperCase().includes('PREMIAÇÃO') ||
+      item.tipoPagamento?.toUpperCase().includes('PREMIACAO')
+    );
+  }, [folhaCLT]);
+
+  const folhaComissao = useMemo(() => {
+    if (!folhaCLT) return [];
+    return folhaCLT.filter(item => 
+      item.tipoPagamento?.toUpperCase().includes('COMISSÃO') ||
+      item.tipoPagamento?.toUpperCase().includes('COMISSAO')
+    );
+  }, [folhaCLT]);
+
+  const folhaOutros = useMemo(() => {
+    if (!folhaCLT) return [];
+    return folhaCLT.filter(item => {
+      const tipo = item.tipoPagamento?.toUpperCase() || '';
+      return !tipo.includes('SALÁRIO') && 
+             !tipo.includes('SALARIO') &&
+             !tipo.includes('PREMIAÇÃO') &&
+             !tipo.includes('PREMIACAO') &&
+             !tipo.includes('COMISSÃO') &&
+             !tipo.includes('COMISSAO');
+    });
+  }, [folhaCLT]);
 
   // Gráficos por tipo de pagamento
   const graficosSalario = useMemo(() => calcularGraficosPorTipo(folhaSalario), [folhaSalario]);

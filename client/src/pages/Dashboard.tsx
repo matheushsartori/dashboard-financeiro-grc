@@ -59,6 +59,9 @@ export default function Dashboard() {
     { enabled: !!latestUpload }
   );
 
+  // Utils do tRPC para invalidar queries
+  const utils = trpc.useUtils();
+
   // Converter escopo de filial para array de códigos
   const codFilialFilter = useMemo(() => 
     getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
@@ -67,30 +70,23 @@ export default function Dashboard() {
 
   // Atualizar escopo quando mudar no localStorage (de outros componentes ou header)
   useEffect(() => {
-    const handleStorageChange = () => {
-      const saved = localStorage.getItem("selectedFilial");
-      if (saved) {
-        setEscopoFilial(saved);
-      }
-    };
-    
     const handleFilialChanged = () => {
       const saved = localStorage.getItem("selectedFilial");
-      if (saved) {
+      if (saved && saved !== escopoFilial) {
         setEscopoFilial(saved);
+        // Invalidar queries para forçar refetch com nova filial
+        utils.invalidate();
       }
     };
 
-    window.addEventListener("storage", handleStorageChange);
     window.addEventListener("filialChanged", handleFilialChanged);
-    // Também verificar mudanças no mesmo tab
-    const interval = setInterval(handleStorageChange, 500);
+    window.addEventListener("storage", handleFilialChanged);
+    
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("filialChanged", handleFilialChanged);
-      clearInterval(interval);
+      window.removeEventListener("storage", handleFilialChanged);
     };
-  }, []);
+  }, [escopoFilial, utils]);
 
   // Handler para mudança de filial (usado apenas no filtro dentro do dashboard)
   const handleFilialChange = (value: TipoEscopoFilial) => {
@@ -98,26 +94,42 @@ export default function Dashboard() {
     setEscopoFilial(value);
     // Disparar evento para atualizar header
     window.dispatchEvent(new Event("filialChanged"));
+    // Invalidar queries para forçar refetch imediato com nova filial
+    utils.invalidate();
   };
 
+  // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload,
+      staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
+    }
   );
 
+  // Carregar dados secundários em paralelo (mas só após summary estar disponível)
   const { data: contasPagarData, isLoading: loadingContasPagar } = trpc.financial.getContasAPagarSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   const { data: contasReceberData, isLoading: loadingContasReceber } = trpc.financial.getContasAReceberSummary.useQuery(
     { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
+      staleTime: 3 * 60 * 1000,
+    }
   );
 
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
     { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { enabled: !!latestUpload }
+    { 
+      enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
+      staleTime: 5 * 60 * 1000, // Dados mensais mudam menos, cache maior
+    }
   );
 
   // Combinar todos os estados de loading

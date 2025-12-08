@@ -10,7 +10,17 @@ import "./index.css";
 // Atualizar título da página
 document.title = APP_TITLE;
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos - dados considerados frescos por 5 min
+      gcTime: 10 * 60 * 1000, // 10 minutos - cache mantido por 10 min (antigo cacheTime)
+      refetchOnWindowFocus: false, // Não refetch ao focar na janela
+      refetchOnMount: false, // Não refetch ao montar se dados estão frescos
+      retry: 1, // Tentar apenas 1 vez em caso de erro
+    },
+  },
+});
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
