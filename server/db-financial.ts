@@ -1,4 +1,4 @@
-import { eq, and, or, gte, lte, gt, desc, sql, asc, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, gte, lte, gt, desc, sql, asc, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   uploads,
@@ -17,6 +17,14 @@ import {
   InsertCentroCusto,
   InsertFornecedor,
 } from "../drizzle/schema";
+
+// ===== FUNÇÕES AUXILIARES =====
+
+// Função auxiliar para construir filtro de filial
+function buildFilialFilter(codFilial: number[] | null | undefined, field: any) {
+  if (!codFilial || codFilial.length === 0) return undefined;
+  return inArray(field, codFilial);
+}
 
 // ===== UPLOADS =====
 
@@ -239,27 +247,39 @@ export async function insertContasAPagar(data: InsertContaAPagar[]) {
   console.log(`[Insert] Contas a Pagar: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
-export async function getContasAPagarByUpload(uploadId: number) {
+export async function getContasAPagarByUpload(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(contasAPagar).where(eq(contasAPagar.uploadId, uploadId));
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+
+  return db.select().from(contasAPagar).where(whereCondition);
 }
 
-export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
+export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return null;
 
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  let whereCondition = eq(contasAPagar.uploadId, uploadId);
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  // Adicionar filtro de filial
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
 
   if (tipoVisualizacao === "realizado") {
     // Apenas pagamentos com data de pagamento <= hoje ou sem data de pagamento mas com valorPago > 0
     // OU sem valorPago mas com valor e data passada/sem data
     whereCondition = and(
-      eq(contasAPagar.uploadId, uploadId),
+      whereCondition,
       or(
         and(isNotNull(contasAPagar.dataPagamento), lte(contasAPagar.dataPagamento, hoje)),
         and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} > 0`),
@@ -276,7 +296,7 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
   } else if (tipoVisualizacao === "projetado") {
     // Apenas pagamentos com data de pagamento > hoje ou sem data de pagamento mas sem valor pago
     whereCondition = and(
-      eq(contasAPagar.uploadId, uploadId),
+      whereCondition,
       or(
         and(isNotNull(contasAPagar.dataPagamento), gt(contasAPagar.dataPagamento, hoje)),
         and(isNull(contasAPagar.dataPagamento), sql`${contasAPagar.valorPago} = 0`, sql`${contasAPagar.valor} > 0`)
@@ -296,9 +316,15 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
   return result[0];
 }
 
-export async function getTopFornecedores(uploadId: number, limit: number = 10) {
+export async function getTopFornecedores(uploadId: number, limit: number = 10, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
 
   return db
     .select({
@@ -306,19 +332,26 @@ export async function getTopFornecedores(uploadId: number, limit: number = 10) {
       totalPago: sql<number>`SUM(${contasAPagar.valorPago})`,
     })
     .from(contasAPagar)
-    .where(eq(contasAPagar.uploadId, uploadId))
+    .where(whereCondition)
     .groupBy(contasAPagar.fornecedor)
     .orderBy(desc(sql`SUM(${contasAPagar.valorPago})`))
     .limit(limit);
 }
 
-export async function getDespesasPorFornecedor(uploadId: number, mes?: number | null) {
+export async function getDespesasPorFornecedor(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
-  const whereCondition = mes !== null && mes !== undefined
-    ? and(eq(contasAPagar.uploadId, uploadId), eq(contasAPagar.mes, mes))
-    : eq(contasAPagar.uploadId, uploadId);
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
 
   const result = await db
     .select({
@@ -379,18 +412,25 @@ export async function getDespesasPorCategoria(uploadId: number) {
     .orderBy(desc(sql`SUM(${contasAPagar.valorPago})`));
 }
 
-export async function getDespesasPorCentroCusto(uploadId: number) {
+export async function getDespesasPorCentroCusto(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+
   return db
     .select({
-      centroCusto: contasAPagar.descricaoCCSintetico,
-      totalPago: sql<number>`SUM(${contasAPagar.valorPago})`,
+      centroCusto: contasAPagar.descricaoCCAnalitico, // Usar Analítico conforme especificação
+      totalPago: sql<number>`COALESCE(SUM(${contasAPagar.valorPago}), 0)`,
+      quantidade: sql<number>`COUNT(*)`,
     })
     .from(contasAPagar)
-    .where(eq(contasAPagar.uploadId, uploadId))
-    .groupBy(contasAPagar.descricaoCCSintetico)
+    .where(whereCondition)
+    .groupBy(contasAPagar.descricaoCCAnalitico)
     .orderBy(desc(sql`SUM(${contasAPagar.valorPago})`));
 }
 
@@ -475,22 +515,25 @@ export async function insertContasAReceber(data: InsertContaAReceber[]) {
   console.log(`[Insert] Contas a Receber: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
-export async function getContasAReceberByUpload(uploadId: number, mes?: number | null) {
+export async function getContasAReceberByUpload(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
+  let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+
   // Filtrar por mês se fornecido
   if (mes !== null && mes !== undefined) {
-    return db
-      .select()
-      .from(contasAReceber)
-      .where(and(eq(contasAReceber.uploadId, uploadId), eq(contasAReceber.mes, mes)));
+    whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
   }
   
-  return db.select().from(contasAReceber).where(eq(contasAReceber.uploadId, uploadId));
+  return db.select().from(contasAReceber).where(whereCondition);
 }
 
-export async function getContasAReceberSummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
+export async function getContasAReceberSummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -499,6 +542,12 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
 
   // Filtrar por mês se fornecido
   let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  
+  // Adicionar filtro de filial
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
   
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
@@ -548,9 +597,19 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
   return result[0];
 }
 
-export async function getTopClientes(uploadId: number, limit: number = 10) {
+export async function getTopClientes(uploadId: number, limit: number = 10, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+
+  let whereCondition: any = and(
+    eq(contasAReceber.uploadId, uploadId),
+    sql`${contasAReceber.valorRecebido} > 0`
+  );
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
 
   // Apenas valores realmente recebidos (valorRecebido > 0)
   return db
@@ -559,22 +618,51 @@ export async function getTopClientes(uploadId: number, limit: number = 10) {
       totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
     })
     .from(contasAReceber)
-    .where(
-      and(
-        eq(contasAReceber.uploadId, uploadId),
-        sql`${contasAReceber.valorRecebido} > 0`
-      )
-    )
+    .where(whereCondition)
     .groupBy(contasAReceber.cliente)
     .orderBy(desc(sql`SUM(${contasAReceber.valorRecebido})`))
     .limit(limit);
 }
 
-export async function getReceitasPorEmpresa(uploadId: number, mes?: number | null) {
+// Obter receitas agrupadas por HISTÓRICO (composição da receita)
+export async function getReceitasPorHistorico(uploadId: number, codFilial?: number[] | null) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let whereCondition: any = and(
+    eq(contasAReceber.uploadId, uploadId),
+    sql`${contasAReceber.valorRecebido} > 0`,
+    isNotNull(contasAReceber.historico)
+  );
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+
+  return db
+    .select({
+      historico: contasAReceber.historico,
+      totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
+      quantidade: sql<number>`COUNT(*)`,
+    })
+    .from(contasAReceber)
+    .where(whereCondition)
+    .groupBy(contasAReceber.historico)
+    .orderBy(desc(sql`SUM(${contasAReceber.valorRecebido})`));
+}
+
+export async function getReceitasPorEmpresa(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
   let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  
+  // Adicionar filtro de filial
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
   
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
@@ -867,13 +955,13 @@ export async function getSaldosBancariosSummary(uploadId: number) {
 
 // ===== DASHBOARD SUMMARY =====
 
-export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
+export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return null;
 
   const [contasPagar, contasReceber, folha, saldos] = await Promise.all([
-    getContasAPagarSummary(uploadId, tipoVisualizacao),
-    getContasAReceberSummary(uploadId, undefined, tipoVisualizacao),
+    getContasAPagarSummary(uploadId, tipoVisualizacao, codFilial),
+    getContasAReceberSummary(uploadId, undefined, tipoVisualizacao, codFilial),
     getFolhaPagamentoSummary(uploadId),
     getSaldosBancariosSummary(uploadId),
   ]);
@@ -888,9 +976,15 @@ export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "r
 
 // ===== DADOS MENSAIS =====
 
-export async function getReceitasMensais(uploadId: number) {
+export async function getReceitasMensais(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+
+  let whereCondition: any = eq(contasAReceber.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
 
   const receitasPorMes = await db
     .select({
@@ -900,7 +994,7 @@ export async function getReceitasMensais(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
-    .where(eq(contasAReceber.uploadId, uploadId))
+    .where(whereCondition)
     .groupBy(contasAReceber.mes)
     .orderBy(asc(contasAReceber.mes));
 
@@ -915,9 +1009,15 @@ export async function getReceitasMensais(uploadId: number) {
     }));
 }
 
-export async function getDespesasMensais(uploadId: number) {
+export async function getDespesasMensais(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
 
   const despesasPorMes = await db
     .select({
@@ -927,7 +1027,7 @@ export async function getDespesasMensais(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAPagar)
-    .where(eq(contasAPagar.uploadId, uploadId))
+    .where(whereCondition)
     .groupBy(contasAPagar.mes)
     .orderBy(asc(contasAPagar.mes));
 
@@ -963,9 +1063,18 @@ export async function getDespesasMensais(uploadId: number) {
   return todosMeses;
 }
 
-export async function getDadosMensais(uploadId: number) {
+export async function getDadosMensais(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return null;
+
+  let whereReceitas: any = and(
+    eq(contasAReceber.uploadId, uploadId),
+    sql`${contasAReceber.valorRecebido} > 0`
+  );
+  const filialFilterReceitas = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilterReceitas) {
+    whereReceitas = and(whereReceitas, filialFilterReceitas);
+  }
 
   // Buscar receitas por mês - apenas valores realmente recebidos
   const receitasPorMes = await db
@@ -976,14 +1085,15 @@ export async function getDadosMensais(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
-    .where(
-      and(
-        eq(contasAReceber.uploadId, uploadId),
-        sql`${contasAReceber.valorRecebido} > 0`
-      )
-    )
+    .where(whereReceitas)
     .groupBy(contasAReceber.mes)
     .orderBy(asc(contasAReceber.mes));
+
+  let whereDespesas: any = eq(contasAPagar.uploadId, uploadId);
+  const filialFilterDespesas = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilterDespesas) {
+    whereDespesas = and(whereDespesas, filialFilterDespesas);
+  }
 
   // Buscar despesas por mês
   const despesasPorMes = await db
@@ -994,7 +1104,7 @@ export async function getDadosMensais(uploadId: number) {
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAPagar)
-    .where(eq(contasAPagar.uploadId, uploadId))
+    .where(whereDespesas)
     .groupBy(contasAPagar.mes)
     .orderBy(asc(contasAPagar.mes));
 
@@ -1028,7 +1138,7 @@ export async function getDadosMensais(uploadId: number) {
 
 // ===== DRE ESPECÍFICO =====
 
-export async function getDRESummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado") {
+export async function getDRESummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -1037,6 +1147,12 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 
   // Construir condições WHERE para receitas
   let receitasWhere: any = eq(contasAReceber.uploadId, uploadId);
+  
+  // Adicionar filtro de filial para receitas
+  const filialFilterReceitas = buildFilialFilter(codFilial, contasAReceber.codFilial);
+  if (filialFilterReceitas) {
+    receitasWhere = and(receitasWhere, filialFilterReceitas);
+  }
   
   if (mes !== null && mes !== undefined) {
     receitasWhere = and(receitasWhere, eq(contasAReceber.mes, mes));
@@ -1071,6 +1187,12 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 
   // Construir condições WHERE para despesas
   let despesasWhere: any = eq(contasAPagar.uploadId, uploadId);
+  
+  // Adicionar filtro de filial para despesas
+  const filialFilterDespesas = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilterDespesas) {
+    despesasWhere = and(despesasWhere, filialFilterDespesas);
+  }
   
   if (mes !== null && mes !== undefined) {
     despesasWhere = and(despesasWhere, eq(contasAPagar.mes, mes));
@@ -1242,4 +1364,57 @@ function getMesNome(mes: number): string {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
   return meses[mes - 1] || `Mês ${mes}`;
+}
+
+// ===== FILIAIS =====
+
+export async function getFiliaisDisponiveis(uploadId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Buscar filiais únicas de contas a pagar e receber
+  const [filiaisPagar, filiaisReceber] = await Promise.all([
+    db
+      .selectDistinct({ codFilial: contasAPagar.codFilial })
+      .from(contasAPagar)
+      .where(
+        and(
+          eq(contasAPagar.uploadId, uploadId),
+          isNotNull(contasAPagar.codFilial)
+        )
+      ),
+    db
+      .selectDistinct({ codFilial: contasAReceber.codFilial })
+      .from(contasAReceber)
+      .where(
+        and(
+          eq(contasAReceber.uploadId, uploadId),
+          isNotNull(contasAReceber.codFilial)
+        )
+      ),
+  ]);
+
+  // Combinar e remover duplicatas
+  const todasFiliais = new Set<number>();
+  filiaisPagar.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
+  filiaisReceber.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
+
+  // Mapear códigos para nomes (pode ser expandido no futuro com uma tabela de filiais)
+  const filiaisComNomes = Array.from(todasFiliais)
+    .sort((a, b) => a - b)
+    .map(cod => ({
+      codigo: cod,
+      nome: getNomeFilial(cod),
+    }));
+
+  return filiaisComNomes;
+}
+
+// Função auxiliar para obter nome da filial baseado no código
+// Totalmente dinâmico - retorna nome genérico para qualquer código de filial
+// No futuro, pode ser expandido para buscar de uma tabela de filiais no banco
+function getNomeFilial(codigo: number): string {
+  // Retorna nome genérico para qualquer filial
+  // Isso permite que o sistema funcione com qualquer número de filiais dinamicamente
+  return `Filial ${codigo}`;
 }

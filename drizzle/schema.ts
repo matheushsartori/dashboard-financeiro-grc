@@ -107,6 +107,7 @@ export const contasAPagar = pgTable("contas_a_pagar", {
   banco: varchar("banco", { length: 100 }),
   agencia: varchar("agencia", { length: 50 }),
   conta: varchar("conta", { length: 50 }),
+  codFilial: integer("cod_filial"), // 1=Matriz/RP, 3=Sul, 4=BH
 });
 
 export type ContaAPagar = typeof contasAPagar.$inferSelect;
@@ -138,6 +139,7 @@ export const contasAReceber = pgTable("contas_a_receber", {
   banco: varchar("banco", { length: 100 }),
   agencia: varchar("agencia", { length: 50 }),
   conta: varchar("conta", { length: 50 }),
+  codFilial: integer("cod_filial"), // 1=Matriz/RP, 3=Sul, 4=BH
 });
 
 export type ContaAReceber = typeof contasAReceber.$inferSelect;

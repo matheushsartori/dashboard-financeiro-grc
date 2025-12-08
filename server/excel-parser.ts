@@ -211,6 +211,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         banco: row["BANCO "] || null,
         agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
         conta: row["C/C"] ? String(row["C/C"]) : null,
+        codFilial: row["CODFILIAL"] ? Number(row["CODFILIAL"]) : null,
       });
     }
   }
@@ -249,6 +250,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         banco: row["BANCO "] || null,
         agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
         conta: row["C/C"] ? String(row["C/C"]) : null,
+        codFilial: row["CODFILIAL"] ? Number(row["CODFILIAL"]) : null,
       });
     }
   }

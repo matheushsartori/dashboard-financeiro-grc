@@ -12,6 +12,7 @@ import { ProtectedRouteSkeleton } from "./components/ProtectedRoute";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const SelecaoFilial = lazy(() => import("./pages/SelecaoFilial"));
 const Receitas = lazy(() => import("./pages/Receitas"));
 const ReceitasEmpresa = lazy(() => import("./pages/ReceitasEmpresa"));
 const Despesas = lazy(() => import("./pages/Despesas"));
@@ -23,6 +24,7 @@ const Importacao = lazy(() => import("./pages/Importacao"));
 // Rotas que precisam do layout
 const protectedRoutes = [
   "/dashboard",
+  "/selecao-filial",
   "/receitas",
   "/despesas",
   "/dre",
@@ -41,6 +43,11 @@ function Router() {
       <Switch>
         <Route path={"/login"} component={Login} />
         <Route path={"/"} component={Home} />
+        <Route path={"/selecao-filial"}>
+          <ProtectedRoute>
+            <SelecaoFilial />
+          </ProtectedRoute>
+        </Route>
         <Route path={"/dashboard"}>
           <ProtectedRoute>
             <Dashboard />

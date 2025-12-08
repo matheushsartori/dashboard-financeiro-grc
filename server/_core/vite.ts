@@ -14,11 +14,11 @@ export async function setupVite(app: Express, server: Server) {
   const viteModule = await import(viteModuleName);
   const { createServer: createViteServer } = viteModule;
   
-  // Import dinâmico do vite.config (pode ser .ts ou .js dependendo do ambiente)
-  const viteConfigPath = "../../vite.config";
-  const viteConfigModule = await import(`${viteConfigPath}.js`).catch(() => import(viteConfigPath));
-  const viteConfig = viteConfigModule.default || viteConfigModule;
-
+  // Resolver o caminho do root corretamente
+  const projectRoot = path.resolve(__dirname, "../..");
+  const clientRoot = path.resolve(projectRoot, "client");
+  const configFile = path.resolve(projectRoot, "vite.config.ts");
+  
   const serverOptions = {
     middlewareMode: true,
     hmr: { 
@@ -39,9 +39,11 @@ export async function setupVite(app: Express, server: Server) {
     }
   });
 
+  // Deixar o Vite carregar a configuração automaticamente do arquivo
+  // Isso evita duplicação de plugins
   const vite = await createViteServer({
-    ...viteConfig.default,
-    configFile: false,
+    root: clientRoot,
+    configFile,
     server: serverOptions,
     appType: "custom",
   });

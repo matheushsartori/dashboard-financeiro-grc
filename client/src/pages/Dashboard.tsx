@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +7,11 @@ import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, Tr
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
 import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
+import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
+import SelecaoFilial from "./SelecaoFilial";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -20,10 +22,27 @@ function formatCurrency(cents: number | null | undefined): string {
 }
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
+  
+  // Buscar filial selecionada do localStorage
+  const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
+    const saved = localStorage.getItem("selectedFilial");
+    return saved || "consolidado";
+  });
+
+  // Verificar se há filial selecionada
+  const [hasSelectedFilial, setHasSelectedFilial] = useState(() => {
+    return !!localStorage.getItem("selectedFilial");
+  });
+
+  useEffect(() => {
+    const selectedFilial = localStorage.getItem("selectedFilial");
+    setHasSelectedFilial(!!selectedFilial);
+  }, []);
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery(undefined, {
     refetchInterval: (query) => {
@@ -45,23 +64,58 @@ export default function Dashboard() {
     return uploads.find(u => u.id === latestUpload);
   }, [latestUpload, uploads]);
 
+  // Buscar filiais disponíveis para o filtro dinâmico
+  const { data: filiaisDisponiveis } = trpc.financial.getFiliaisDisponiveis.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  // Converter escopo de filial para array de códigos
+  const codFilialFilter = useMemo(() => 
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
+    [escopoFilial, filiaisDisponiveis]
+  );
+
+  // Atualizar escopo quando mudar no localStorage (de outros componentes)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem("selectedFilial");
+      if (saved) {
+        setEscopoFilial(saved);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    // Também verificar mudanças no mesmo tab
+    const interval = setInterval(handleStorageChange, 1000);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Handler para mudança de filial
+  const handleFilialChange = (value: TipoEscopoFilial) => {
+    localStorage.setItem("selectedFilial", value);
+    setEscopoFilial(value);
+  };
+
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
     { enabled: !!latestUpload }
   );
 
   const { data: contasPagarData, isLoading: loadingContasPagar } = trpc.financial.getContasAPagarSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
     { enabled: !!latestUpload }
   );
 
   const { data: contasReceberData, isLoading: loadingContasReceber } = trpc.financial.getContasAReceberSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
     { enabled: !!latestUpload }
   );
 
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, codFilial: codFilialFilter },
     { enabled: !!latestUpload }
   );
 
@@ -74,6 +128,11 @@ export default function Dashboard() {
     if (!selectedMonth) return dadosMensais;
     return dadosMensais.filter(d => d.mes === selectedMonth);
   }, [dadosMensais, selectedMonth]);
+
+  // Se não houver filial selecionada, mostrar tela de seleção
+  if (!hasSelectedFilial && latestUpload) {
+    return <SelecaoFilial />;
+  }
 
   if (!latestUpload) {
     return (
@@ -178,7 +237,13 @@ export default function Dashboard() {
   const totalDespesas = summary?.contasPagar?.totalPago || 0;
   const totalFolha = summary?.folha?.totalFolha || 0;
   const saldoBancario = summary?.saldos?.totalSaldo || 0;
-  const resultado = totalReceitas - totalDespesas - totalFolha;
+  
+  // Resultado conforme especificação: Receita Total - Despesa Total (sem folha para KPI principal)
+  const resultado = totalReceitas - totalDespesas;
+  const resultadoComFolha = totalReceitas - totalDespesas - totalFolha;
+  
+  // Margem Bruta conforme especificação: (Receita Total - Despesa Total) / Receita Total
+  const margemBruta = totalReceitas > 0 ? ((resultado / totalReceitas) * 100) : 0;
 
   // Dados para gráfico de pizza de despesas por categoria
   const despesasCategoriaChart = contasPagarData?.despesasCategoria
@@ -207,6 +272,24 @@ export default function Dashboard() {
       valor: (item.totalRecebido || 0) / 100,
     })) || [];
 
+  // Dados para gráfico de composição da receita por HISTÓRICO
+  const receitasPorHistoricoChart = contasReceberData?.receitasPorHistorico
+    ?.filter((item) => item.historico && item.totalRecebido > 0)
+    .slice(0, 10)
+    .map((item) => ({
+      name: item.historico || "Sem histórico",
+      valor: item.totalRecebido / 100,
+    })) || [];
+
+  // Dados para gráfico de despesas por centro de custo
+  const despesasPorCentroCustoChart = contasPagarData?.despesasCentroCusto
+    ?.filter((item) => item.centroCusto && item.totalPago > 0)
+    .slice(0, 10)
+    .map((item) => ({
+      name: item.centroCusto || "Sem centro de custo",
+      valor: item.totalPago / 100,
+    })) || [];
+
   return (
     <div className="container max-w-7xl py-8">
         <div className="mb-8">
@@ -219,6 +302,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
+            <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
             <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
             <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
           </div>
@@ -232,11 +316,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Cards de Resumo */}
+        {/* Cards de Resumo - KPIs conforme especificação */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receitas</CardTitle>
+              <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
@@ -244,14 +328,14 @@ export default function Dashboard() {
                 {formatCurrency(totalReceitas)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {totalReceitasRecebido > 0 ? "Total recebido" : "Total a receber"}
+                Soma de VPAGO (GERAL A RECEBER)
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+              <CardTitle className="text-sm font-medium">Despesa Total</CardTitle>
               <TrendingDown className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
@@ -259,22 +343,7 @@ export default function Dashboard() {
                 {formatCurrency(totalDespesas)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Total pago
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Folha de Pagamento</CardTitle>
-              <Users className="h-4 w-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
-                {formatCurrency(totalFolha)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {summary?.folha?.totalFuncionarios || 0} funcionários
+                Soma de VPAGO (GERAL A PAGAR)
               </p>
             </CardContent>
           </Card>
@@ -293,7 +362,22 @@ export default function Dashboard() {
                 {formatCurrency(resultado)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Receitas - Despesas - Folha
+                Receita Total - Despesa Total
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Margem Bruta</CardTitle>
+              <DollarSign className={`h-4 w-4 ${margemBruta >= 0 ? "text-green-500" : "text-red-500"}`} />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${margemBruta >= 0 ? "text-green-600" : "text-red-600"}`}>
+                {margemBruta.toFixed(1)}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                (Resultado / Receita Total) × 100
               </p>
             </CardContent>
           </Card>
@@ -486,7 +570,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top Clientes */}
-        <Card>
+        <Card className="mb-8">
           <CardHeader>
             <CardTitle>Top 10 Clientes</CardTitle>
             <CardDescription>Clientes com maior valor recebido</CardDescription>
@@ -527,6 +611,133 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Gráficos de Composição */}
+        <div className="grid gap-6 md:grid-cols-2 mb-8">
+          {/* Composição da Receita por HISTÓRICO */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Composição da Receita</CardTitle>
+              <CardDescription>Distribuição da receita total por HISTÓRICO</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {receitasPorHistoricoChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={receitasPorHistoricoChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                      tick={{ fill: "#9ca3af" }}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #4b5563",
+                        borderRadius: "6px",
+                        color: "#f3f4f6",
+                      }}
+                      labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
+                    />
+                    <Bar 
+                      dataKey="valor" 
+                      fill={SERIES_COLORS.receitas}
+                      radius={[4, 4, 0, 0]}
+                    >
+                      <LabelList 
+                        dataKey="valor" 
+                        position="top"
+                        formatter={(value: number) => {
+                          if (value === 0) return "";
+                          const formatted = formatCurrency(value * 100);
+                          return formatted.replace("R$ ", "");
+                        }}
+                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                        offset={5}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                  Sem dados disponíveis
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Análise de Centro de Custo */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Análise de Centro de Custo</CardTitle>
+              <CardDescription>Despesa por Descrição CC Analítico</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {despesasPorCentroCustoChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={despesasPorCentroCustoChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={100} 
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                      stroke="#6b7280"
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                      stroke="#6b7280"
+                      fontSize={11}
+                      tick={{ fill: "#9ca3af" }}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value * 100)}
+                      contentStyle={{
+                        backgroundColor: "#1f2937",
+                        border: "1px solid #4b5563",
+                        borderRadius: "6px",
+                        color: "#f3f4f6",
+                      }}
+                      labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
+                    />
+                    <Bar 
+                      dataKey="valor" 
+                      fill={SERIES_COLORS.despesas}
+                      radius={[4, 4, 0, 0]}
+                    >
+                      <LabelList 
+                        dataKey="valor" 
+                        position="top"
+                        formatter={(value: number) => {
+                          if (value === 0) return "";
+                          const formatted = formatCurrency(value * 100);
+                          return formatted.replace("R$ ", "");
+                        }}
+                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                        offset={5}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                  Sem dados disponíveis
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
   );
 }

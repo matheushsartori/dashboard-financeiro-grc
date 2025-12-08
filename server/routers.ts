@@ -108,11 +108,12 @@ export const appRouter = router({
     getDashboardSummary: protectedProcedure
       .input(z.object({ 
         uploadId: z.number(),
-        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
+        codFilial: z.array(z.number()).optional().nullable()
       }))
       .query(async ({ input }) => {
         const { getDashboardSummary } = await import("./db-financial");
-        return getDashboardSummary(input.uploadId, input.tipoVisualizacao);
+        return getDashboardSummary(input.uploadId, input.tipoVisualizacao, input.codFilial ?? null);
       }),
 
     // Obter resumo do DRE
@@ -120,11 +121,12 @@ export const appRouter = router({
       .input(z.object({ 
         uploadId: z.number(), 
         mes: z.number().optional().nullable(),
-        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
+        codFilial: z.array(z.number()).optional().nullable()
       }))
       .query(async ({ input }) => {
         const { getDRESummary } = await import("./db-financial");
-        return getDRESummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao);
+        return getDRESummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao, input.codFilial ?? null);
       }),
 
     // Obter DRE de todos os meses (para tabela horizontal)
@@ -137,43 +139,54 @@ export const appRouter = router({
 
     // Obter dados mensais
     getDadosMensais: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getDadosMensais } = await import("./db-financial");
-        return getDadosMensais(input.uploadId);
+        return getDadosMensais(input.uploadId, input.codFilial ?? null);
       }),
 
     // Obter contas a pagar
     getContasAPagar: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getContasAPagarByUpload } = await import("./db-financial");
-        return getContasAPagarByUpload(input.uploadId);
+        return getContasAPagarByUpload(input.uploadId, input.codFilial ?? null);
       }),
 
     // Obter resumo de contas a pagar
     getContasAPagarSummary: protectedProcedure
       .input(z.object({ 
         uploadId: z.number(),
-        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
+        codFilial: z.array(z.number()).optional().nullable()
       }))
       .query(async ({ input }) => {
         const { getContasAPagarSummary, getTopFornecedores, getDespesasPorCategoria, getDespesasPorCentroCusto } = await import("./db-financial");
         const [summary, topFornecedores, despesasCategoria, despesasCentroCusto] = await Promise.all([
-          getContasAPagarSummary(input.uploadId, input.tipoVisualizacao),
-          getTopFornecedores(input.uploadId, 10),
+          getContasAPagarSummary(input.uploadId, input.tipoVisualizacao, input.codFilial ?? null),
+          getTopFornecedores(input.uploadId, 10, input.codFilial ?? null),
           getDespesasPorCategoria(input.uploadId),
-          getDespesasPorCentroCusto(input.uploadId),
+          getDespesasPorCentroCusto(input.uploadId, input.codFilial ?? null),
         ]);
         return { summary, topFornecedores, despesasCategoria, despesasCentroCusto };
       }),
 
     // Obter despesas por fornecedor
     getDespesasPorFornecedor: protectedProcedure
-      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .input(z.object({ 
+        uploadId: z.number(), 
+        mes: z.number().optional().nullable(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getDespesasPorFornecedor } = await import("./db-financial");
-        return getDespesasPorFornecedor(input.uploadId, input.mes ?? null);
+        return getDespesasPorFornecedor(input.uploadId, input.mes ?? null, input.codFilial ?? null);
       }),
 
     // Obter detalhes de despesas de um fornecedor específico
@@ -186,10 +199,14 @@ export const appRouter = router({
 
     // Obter contas a receber
     getContasAReceber: protectedProcedure
-      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .input(z.object({ 
+        uploadId: z.number(), 
+        mes: z.number().optional().nullable(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getContasAReceberByUpload } = await import("./db-financial");
-        return getContasAReceberByUpload(input.uploadId, input.mes ?? null);
+        return getContasAReceberByUpload(input.uploadId, input.mes ?? null, input.codFilial ?? null);
       }),
 
     // Obter resumo de contas a receber
@@ -197,39 +214,51 @@ export const appRouter = router({
       .input(z.object({ 
         uploadId: z.number(), 
         mes: z.number().optional().nullable(),
-        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado")
+        tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
+        codFilial: z.array(z.number()).optional().nullable()
       }))
       .query(async ({ input }) => {
-        const { getContasAReceberSummary, getTopClientes } = await import("./db-financial");
-        const [summary, topClientes] = await Promise.all([
-          getContasAReceberSummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao),
-          getTopClientes(input.uploadId, 10),
+        const { getContasAReceberSummary, getTopClientes, getReceitasPorHistorico } = await import("./db-financial");
+        const [summary, topClientes, receitasPorHistorico] = await Promise.all([
+          getContasAReceberSummary(input.uploadId, input.mes ?? null, input.tipoVisualizacao, input.codFilial ?? null),
+          getTopClientes(input.uploadId, 10, input.codFilial ?? null),
+          getReceitasPorHistorico(input.uploadId, input.codFilial ?? null),
         ]);
-        return { summary, topClientes };
+        return { summary, topClientes, receitasPorHistorico };
       }),
 
     // Obter receitas mensais (evolução)
     getReceitasMensais: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getReceitasMensais } = await import("./db-financial");
-        return getReceitasMensais(input.uploadId);
+        return getReceitasMensais(input.uploadId, input.codFilial ?? null);
       }),
 
     // Obter despesas mensais (evolução)
     getDespesasMensais: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getDespesasMensais } = await import("./db-financial");
-        return getDespesasMensais(input.uploadId);
+        return getDespesasMensais(input.uploadId, input.codFilial ?? null);
       }),
 
     // Obter receitas por empresa
     getReceitasPorEmpresa: protectedProcedure
-      .input(z.object({ uploadId: z.number(), mes: z.number().optional().nullable() }))
+      .input(z.object({ 
+        uploadId: z.number(), 
+        mes: z.number().optional().nullable(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getReceitasPorEmpresa } = await import("./db-financial");
-        return getReceitasPorEmpresa(input.uploadId, input.mes ?? null);
+        return getReceitasPorEmpresa(input.uploadId, input.mes ?? null, input.codFilial ?? null);
       }),
 
     // Obter detalhes de receitas de uma empresa específica
@@ -266,6 +295,14 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getSaldosBancariosByUpload } = await import("./db-financial");
         return getSaldosBancariosByUpload(input.uploadId);
+      }),
+
+    // Obter filiais disponíveis para um upload
+    getFiliaisDisponiveis: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getFiliaisDisponiveis } = await import("./db-financial");
+        return getFiliaisDisponiveis(input.uploadId);
       }),
   }),
 });
