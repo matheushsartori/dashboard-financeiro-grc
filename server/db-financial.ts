@@ -9,6 +9,7 @@ import {
   planoContas,
   centrosCusto,
   fornecedores,
+  filiais,
   InsertUpload,
   InsertContaAPagar,
   InsertContaAReceber,
@@ -16,6 +17,7 @@ import {
   InsertPlanoContas,
   InsertCentroCusto,
   InsertFornecedor,
+  InsertFilial,
 } from "../drizzle/schema";
 
 // ===== FUNÇÕES AUXILIARES =====
@@ -1368,6 +1370,45 @@ function getMesNome(mes: number): string {
 
 // ===== FILIAIS =====
 
+// Função para obter ou criar nome da filial
+async function getOrCreateNomeFilial(db: any, codigo: number): Promise<string> {
+  // Primeiro, tentar buscar da tabela de filiais
+  const filialExistente = await db
+    .select()
+    .from(filiais)
+    .where(eq(filiais.codigo, codigo))
+    .limit(1);
+
+  if (filialExistente.length > 0) {
+    return filialExistente[0].nome;
+  }
+
+  // Se não existir, criar com nome padrão baseado em mapeamento conhecido
+  // Matriz (RP) = Filial 1
+  // Sul = Filial 3
+  // BH = Filial 4
+  const nomesPadrao: Record<number, string> = {
+    1: "Matriz (RP)",
+    3: "Sul",
+    4: "BH",
+  };
+
+  const nome = nomesPadrao[codigo] || `Filial ${codigo}`;
+
+  // Inserir na tabela de filiais para uso futuro
+  try {
+    await db.insert(filiais).values({
+      codigo,
+      nome,
+    });
+  } catch (error) {
+    // Ignorar erro se já existir (race condition)
+    console.log(`[Filial] Filial ${codigo} já existe ou erro ao inserir:`, error);
+  }
+
+  return nome;
+}
+
 export async function getFiliaisDisponiveis(uploadId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -1399,22 +1440,15 @@ export async function getFiliaisDisponiveis(uploadId: number) {
   filiaisPagar.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
   filiaisReceber.forEach(f => f.codFilial && todasFiliais.add(f.codFilial));
 
-  // Mapear códigos para nomes (pode ser expandido no futuro com uma tabela de filiais)
-  const filiaisComNomes = Array.from(todasFiliais)
-    .sort((a, b) => a - b)
-    .map(cod => ({
-      codigo: cod,
-      nome: getNomeFilial(cod),
-    }));
+  // Buscar nomes das filiais da tabela ou criar com nomes padrão
+  const filiaisComNomes = await Promise.all(
+    Array.from(todasFiliais)
+      .sort((a, b) => a - b)
+      .map(async (cod) => ({
+        codigo: cod,
+        nome: await getOrCreateNomeFilial(db, cod),
+      }))
+  );
 
   return filiaisComNomes;
-}
-
-// Função auxiliar para obter nome da filial baseado no código
-// Totalmente dinâmico - retorna nome genérico para qualquer código de filial
-// No futuro, pode ser expandido para buscar de uma tabela de filiais no banco
-function getNomeFilial(codigo: number): string {
-  // Retorna nome genérico para qualquer filial
-  // Isso permite que o sistema funcione com qualquer número de filiais dinamicamente
-  return `Filial ${codigo}`;
 }

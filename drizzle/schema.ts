@@ -77,6 +77,16 @@ export const fornecedores = pgTable("fornecedores", {
 export type Fornecedor = typeof fornecedores.$inferSelect;
 export type InsertFornecedor = typeof fornecedores.$inferInsert;
 
+// Tabela de filiais
+export const filiais = pgTable("filiais", {
+  id: serial("id").primaryKey(),
+  codigo: integer("codigo").notNull().unique(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+});
+
+export type Filial = typeof filiais.$inferSelect;
+export type InsertFilial = typeof filiais.$inferInsert;
+
 // Tabela de contas a pagar
 export const contasAPagar = pgTable("contas_a_pagar", {
   id: serial("id").primaryKey(),

@@ -122,7 +122,7 @@ export default function SelecaoFilial() {
         <Building2 className="h-16 w-16 mx-auto mb-4 text-primary" />
         <h1 className="text-3xl font-bold mb-2">Selecione o Escopo</h1>
         <p className="text-muted-foreground">
-          Escolha qual filial você deseja visualizar ou veja o consolidado de todas as filiais
+          Visualize o resultado consolidado da Matriz (incluindo todas as filiais) ou o resultado individual de cada filial
         </p>
       </div>
 
@@ -134,7 +134,7 @@ export default function SelecaoFilial() {
               <Building2 className="h-5 w-5" />
               Consolidado GRC
             </CardTitle>
-            <CardDescription>Todas as filiais</CardDescription>
+            <CardDescription>Matriz (RP) + Todas as Filiais</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" variant="outline">

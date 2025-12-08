@@ -22,10 +22,12 @@ import {
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { LayoutDashboard, LogOut, PanelLeft, Users, TrendingUp, TrendingDown, Wallet, Upload, FileText } from "lucide-react";
-import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { CSSProperties, useEffect, useRef, useState, useMemo } from "react";
+import { useLocation, useSearch } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { FilialFilter, TipoEscopoFilial } from "./FilialFilter";
+import { trpc } from "@/lib/trpc";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
@@ -87,12 +89,57 @@ function DashboardLayoutContent({
     window.location.href = "/login";
   };
   const [location, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(useSearch());
+  const uploadId = searchParams.get("uploadId");
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+
+  // Buscar uploads e filiais para o seletor no header
+  const { data: uploads } = trpc.financial.listUploads.useQuery();
+  const latestUpload = useMemo(() => {
+    if (uploadId) return parseInt(uploadId);
+    if (uploads && uploads.length > 0) return uploads[0].id;
+    return null;
+  }, [uploadId, uploads]);
+
+  const { data: filiaisDisponiveis } = trpc.financial.getFiliaisDisponiveis.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  // Estado do escopo de filial no header
+  const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
+    const saved = localStorage.getItem("selectedFilial");
+    return saved || "consolidado";
+  });
+
+  // Atualizar quando mudar no localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem("selectedFilial");
+      if (saved) {
+        setEscopoFilial(saved);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    const interval = setInterval(handleStorageChange, 500);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Handler para mudança de filial no header
+  const handleFilialChange = (value: TipoEscopoFilial) => {
+    localStorage.setItem("selectedFilial", value);
+    setEscopoFilial(value);
+    // Disparar evento customizado para atualizar outros componentes
+    window.dispatchEvent(new Event("filialChanged"));
+  };
 
   useEffect(() => {
     if (isCollapsed) {
@@ -235,20 +282,31 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
+        {/* Header com seletor de filial */}
+        <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex items-center gap-4 flex-1">
+            {isMobile && (
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? APP_TITLE}
-                  </span>
-                </div>
-              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <span className="tracking-tight text-foreground font-medium">
+                {activeMenuItem?.label ?? APP_TITLE}
+              </span>
             </div>
           </div>
-        )}
+          
+          {/* Seletor de Filial no Header */}
+          {latestUpload && (
+            <div className="flex items-center gap-2">
+              <FilialFilter 
+                value={escopoFilial} 
+                onChange={handleFilialChange} 
+                uploadId={latestUpload}
+                label="Escopo"
+              />
+            </div>
+          )}
+        </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>

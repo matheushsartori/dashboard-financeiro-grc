@@ -11,7 +11,6 @@ import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
-import SelecaoFilial from "./SelecaoFilial";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -33,16 +32,6 @@ export default function Dashboard() {
     const saved = localStorage.getItem("selectedFilial");
     return saved || "consolidado";
   });
-
-  // Verificar se há filial selecionada
-  const [hasSelectedFilial, setHasSelectedFilial] = useState(() => {
-    return !!localStorage.getItem("selectedFilial");
-  });
-
-  useEffect(() => {
-    const selectedFilial = localStorage.getItem("selectedFilial");
-    setHasSelectedFilial(!!selectedFilial);
-  }, []);
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery(undefined, {
     refetchInterval: (query) => {
@@ -76,7 +65,7 @@ export default function Dashboard() {
     [escopoFilial, filiaisDisponiveis]
   );
 
-  // Atualizar escopo quando mudar no localStorage (de outros componentes)
+  // Atualizar escopo quando mudar no localStorage (de outros componentes ou header)
   useEffect(() => {
     const handleStorageChange = () => {
       const saved = localStorage.getItem("selectedFilial");
@@ -84,19 +73,31 @@ export default function Dashboard() {
         setEscopoFilial(saved);
       }
     };
+    
+    const handleFilialChanged = () => {
+      const saved = localStorage.getItem("selectedFilial");
+      if (saved) {
+        setEscopoFilial(saved);
+      }
+    };
+
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("filialChanged", handleFilialChanged);
     // Também verificar mudanças no mesmo tab
-    const interval = setInterval(handleStorageChange, 1000);
+    const interval = setInterval(handleStorageChange, 500);
     return () => {
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("filialChanged", handleFilialChanged);
       clearInterval(interval);
     };
   }, []);
 
-  // Handler para mudança de filial
+  // Handler para mudança de filial (usado apenas no filtro dentro do dashboard)
   const handleFilialChange = (value: TipoEscopoFilial) => {
     localStorage.setItem("selectedFilial", value);
     setEscopoFilial(value);
+    // Disparar evento para atualizar header
+    window.dispatchEvent(new Event("filialChanged"));
   };
 
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
@@ -129,10 +130,16 @@ export default function Dashboard() {
     return dadosMensais.filter(d => d.mes === selectedMonth);
   }, [dadosMensais, selectedMonth]);
 
-  // Se não houver filial selecionada, mostrar tela de seleção
-  if (!hasSelectedFilial && latestUpload) {
-    return <SelecaoFilial />;
-  }
+  // Verificar se há filial selecionada - se não houver, redirecionar para seleção
+  useEffect(() => {
+    const selectedFilial = localStorage.getItem("selectedFilial");
+    if (!selectedFilial && latestUpload) {
+      // Se não houver filial selecionada e houver upload, redirecionar para seleção
+      const params = new URLSearchParams();
+      if (uploadId) params.set("uploadId", uploadId);
+      setLocation(`/selecao-filial?${params.toString()}`);
+    }
+  }, [latestUpload, uploadId, setLocation]);
 
   if (!latestUpload) {
     return (
@@ -302,7 +309,6 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4 flex-wrap">
-            <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
             <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
             <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
           </div>

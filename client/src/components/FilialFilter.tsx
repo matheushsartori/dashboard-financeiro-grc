@@ -28,7 +28,7 @@ export function FilialFilter({ value, onChange, label = "Filtrar por escopo", up
   }
 
   const opcoes = [
-    { value: "consolidado", label: "Consolidado GRC (Total)", codFilial: null },
+    { value: "consolidado", label: "Consolidado GRC (Matriz + Todas as Filiais)", codFilial: null },
     ...(filiais || []).map((filial) => ({
       value: filial.codigo.toString(),
       label: `${filial.nome} - Filial ${filial.codigo}`,
