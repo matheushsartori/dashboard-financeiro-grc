@@ -79,10 +79,26 @@ try {
         
         console.log(`  [${i + 1}/${migrationStatements.length}] Executing...`);
         try {
-          await client.query(statement);
-          console.log(`  ✓ Success\n`);
+          const result = await client.query(statement);
+          // Verificar se há notices sobre colunas que já existem
+          if (result.notices && result.notices.length > 0) {
+            const hasColumnExistsNotice = result.notices.some((notice) => 
+              notice.message && notice.message.includes('already exists')
+            );
+            if (hasColumnExistsNotice) {
+              console.log(`  ⚠ Skipped (already exists)\n`);
+            } else {
+              console.log(`  ✓ Success\n`);
+            }
+          } else {
+            console.log(`  ✓ Success\n`);
+          }
         } catch (error) {
-          if (error.message.includes('already exists') || error.message.includes('duplicate') || error.message.includes('column') && error.message.includes('already exists')) {
+          // Tratar erros de código 42701 (duplicate column) como notices
+          if (error.code === '42701' || 
+              error.message.includes('already exists') || 
+              error.message.includes('duplicate') || 
+              (error.message.includes('column') && error.message.includes('already exists'))) {
             console.log(`  ⚠ Skipped (already exists)\n`);
           } else {
             console.error(`  ✗ Error: ${error.message}\n`);

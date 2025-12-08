@@ -144,8 +144,8 @@ function DashboardLayoutContent({
     setEscopoFilial(value);
     // Disparar evento customizado para atualizar outros componentes
     window.dispatchEvent(new Event("filialChanged"));
-    // Invalidar queries para forçar refetch imediato com nova filial
-    utils.invalidate();
+    // Invalidar todas as queries financeiras para forçar refetch imediato com nova filial
+    utils.financial.invalidate();
   };
 
   useEffect(() => {

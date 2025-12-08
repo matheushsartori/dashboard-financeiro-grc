@@ -24,7 +24,29 @@ import {
 
 // Função auxiliar para construir filtro de filial
 function buildFilialFilter(codFilial: number[] | null | undefined, field: any) {
-  if (!codFilial || codFilial.length === 0) return undefined;
+  // Se codFilial é null ou undefined, não aplicar filtro (retorna todos, incluindo nulls)
+  if (codFilial === null || codFilial === undefined) {
+    return undefined;
+  }
+  
+  // Se é um array vazio, não aplicar filtro
+  if (codFilial.length === 0) {
+    return undefined;
+  }
+  
+  // Se é um array com valores, filtrar apenas essas filiais
+  // Quando é consolidado (múltiplas filiais), incluir também registros com codFilial null
+  // Quando é uma filial específica, não incluir nulls
+  
+  // Se há múltiplas filiais (consolidado), incluir também nulls
+  if (codFilial.length > 1) {
+    return or(
+      inArray(field, codFilial),
+      isNull(field)
+    );
+  }
+  
+  // Se é uma filial específica, filtrar apenas essa filial (sem incluir nulls)
   return inArray(field, codFilial);
 }
 
@@ -1022,17 +1044,34 @@ export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamen
   const db = await getDb();
   if (!db) return 0;
 
+  // Se for comissão, buscar também por variações no tipoPagamento
+  let whereCondition: any = eq(folhaPagamento.uploadId, uploadId);
+  
+  if (tipoPagamento === 'COMISSÃO VENDAS' || tipoPagamento.includes('COMISSÃO') || tipoPagamento.includes('COMISSAO')) {
+    // Buscar por tipoPagamento contendo COMISSÃO ou COMISSAO (case insensitive)
+    whereCondition = and(
+      whereCondition,
+      or(
+        sql`UPPER(${folhaPagamento.tipoPagamento}) LIKE '%COMISSÃO%'`,
+        sql`UPPER(${folhaPagamento.tipoPagamento}) LIKE '%COMISSAO%'`,
+        sql`UPPER(${folhaPagamento.tipoPagamento}) LIKE '%COMISSÃO VENDAS%'`,
+        sql`UPPER(${folhaPagamento.tipoPagamento}) LIKE '%COMISSAO VENDAS%'`
+      )
+    );
+  } else {
+    // Para outros tipos, buscar exatamente como antes
+    whereCondition = and(
+      whereCondition,
+      eq(folhaPagamento.tipoPagamento, tipoPagamento)
+    );
+  }
+
   const result = await db
     .select({
       total: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
     })
     .from(folhaPagamento)
-    .where(
-      and(
-        eq(folhaPagamento.uploadId, uploadId),
-        eq(folhaPagamento.tipoPagamento, tipoPagamento)
-      )
-    );
+    .where(whereCondition);
 
   return result[0].total;
 }
@@ -1480,7 +1519,7 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 }
 
 // Buscar DRE de todos os meses para tabela horizontal
-export async function getDREPorMeses(uploadId: number) {
+export async function getDREPorMeses(uploadId: number, codFilial?: number[] | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -1488,7 +1527,7 @@ export async function getDREPorMeses(uploadId: number) {
   const drePorMeses = [];
 
   for (const mes of meses) {
-    const dre = await getDRESummary(uploadId, mes);
+    const dre = await getDRESummary(uploadId, mes, "realizado", codFilial);
     if (dre) {
       drePorMeses.push({
         mes,

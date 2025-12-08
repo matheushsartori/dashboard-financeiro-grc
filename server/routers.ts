@@ -136,10 +136,13 @@ export const appRouter = router({
 
     // Obter DRE de todos os meses (para tabela horizontal)
     getDREPorMeses: protectedProcedure
-      .input(z.object({ uploadId: z.number() }))
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).optional().nullable()
+      }))
       .query(async ({ input }) => {
         const { getDREPorMeses } = await import("./db-financial");
-        return getDREPorMeses(input.uploadId);
+        return getDREPorMeses(input.uploadId, input.codFilial ?? null);
       }),
 
     // Obter dados mensais
@@ -301,8 +304,9 @@ export const appRouter = router({
         const { getFolhaPagamentoTotalByType } = await import("./db-financial");
         
         // Os tipos de pagamento foram identificados na planilha CONSULTA FOLHA
+        // Para comissão, usar 'COMISSÃO' genérico pois a função agora busca por variações
         const totalSalario = await getFolhaPagamentoTotalByType(input.uploadId, 'SALÁRIO');
-        const totalComissao = await getFolhaPagamentoTotalByType(input.uploadId, 'COMISSÃO VENDAS');
+        const totalComissao = await getFolhaPagamentoTotalByType(input.uploadId, 'COMISSÃO');
         const totalPremiacao = await getFolhaPagamentoTotalByType(input.uploadId, 'PREMIAÇÃO');
 
         return {

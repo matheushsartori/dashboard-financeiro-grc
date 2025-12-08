@@ -282,10 +282,13 @@ export default function Folha() {
 
   const folhaComissao = useMemo(() => {
     if (!folhaCLT) return [];
-    return folhaCLT.filter(item => 
-      item.tipoPagamento?.toUpperCase().includes('COMISSÃO') ||
-      item.tipoPagamento?.toUpperCase().includes('COMISSAO')
-    );
+    return folhaCLT.filter(item => {
+      const tipo = item.tipoPagamento?.toUpperCase() || '';
+      return tipo.includes('COMISSÃO') ||
+             tipo.includes('COMISSAO') ||
+             tipo.includes('COMISSÃO VENDAS') ||
+             tipo.includes('COMISSAO VENDAS');
+    });
   }, [folhaCLT]);
 
   const folhaOutros = useMemo(() => {

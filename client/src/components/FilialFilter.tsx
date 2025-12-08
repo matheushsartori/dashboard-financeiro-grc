@@ -64,16 +64,21 @@ export function FilialFilter({ value, onChange, label = "Filtrar por escopo", up
 
 // Função auxiliar para converter o escopo em array de códigos de filial para filtragem
 export function getCodFilialFilter(escopo: TipoEscopoFilial, filiaisDisponiveis?: Array<{ codigo: number }>): number[] | null {
-  if (escopo === "consolidado") {
-    // Se houver filiais disponíveis, retornar todas elas
-    if (filiaisDisponiveis && filiaisDisponiveis.length > 0) {
-      return filiaisDisponiveis.map(f => f.codigo);
+  // Se não é "consolidado", é uma filial específica (string numérica)
+  if (escopo !== "consolidado") {
+    const codFilial = parseInt(escopo);
+    if (isNaN(codFilial)) {
+      return null;
     }
-    // Fallback para compatibilidade (caso não tenha filiais ainda)
-    return null; // null significa todas as filiais
+    return [codFilial];
   }
-  const codFilial = parseInt(escopo);
-  if (isNaN(codFilial)) return null;
-  return [codFilial];
+  
+  // Se é "consolidado", retornar todas as filiais disponíveis
+  if (filiaisDisponiveis && filiaisDisponiveis.length > 0) {
+    return filiaisDisponiveis.map(f => f.codigo);
+  }
+  
+  // Fallback para compatibilidade (caso não tenha filiais ainda)
+  return null; // null significa todas as filiais
 }
 

@@ -74,8 +74,11 @@ export default function Dashboard() {
       const saved = localStorage.getItem("selectedFilial");
       if (saved && saved !== escopoFilial) {
         setEscopoFilial(saved);
-        // Invalidar queries para forçar refetch com nova filial
-        utils.invalidate();
+        // Invalidar queries específicas para forçar refetch com nova filial
+        utils.financial.getDashboardSummary.invalidate();
+        utils.financial.getContasAPagarSummary.invalidate();
+        utils.financial.getContasAReceberSummary.invalidate();
+        utils.financial.getDadosMensais.invalidate();
       }
     };
 
@@ -94,8 +97,11 @@ export default function Dashboard() {
     setEscopoFilial(value);
     // Disparar evento para atualizar header
     window.dispatchEvent(new Event("filialChanged"));
-    // Invalidar queries para forçar refetch imediato com nova filial
-    utils.invalidate();
+    // Invalidar queries específicas para forçar refetch imediato com nova filial
+    utils.financial.getDashboardSummary.invalidate();
+    utils.financial.getContasAPagarSummary.invalidate();
+    utils.financial.getContasAReceberSummary.invalidate();
+    utils.financial.getDadosMensais.invalidate();
   };
 
   // Priorizar: carregar summary primeiro (dados essenciais)

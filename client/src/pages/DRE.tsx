@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from "recharts";
 import { MonthFilter } from "@/components/MonthFilter";
 import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
+import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
@@ -24,6 +25,12 @@ export default function DRE() {
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
+  
+  // Buscar filial selecionada do localStorage
+  const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
+    const saved = localStorage.getItem("selectedFilial");
+    return saved || "consolidado";
+  });
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -32,9 +39,57 @@ export default function DRE() {
     return null;
   }, [uploadId, uploads]);
 
+  // Buscar filiais disponíveis para o filtro dinâmico
+  const { data: filiaisDisponiveis } = trpc.financial.getFiliaisDisponiveis.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  // Utils do tRPC para invalidar queries
+  const utils = trpc.useUtils();
+
+  // Converter escopo de filial para array de códigos
+  const codFilialFilter = useMemo(() => 
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
+    [escopoFilial, filiaisDisponiveis]
+  );
+
+  // Atualizar escopo quando mudar no localStorage (de outros componentes ou header)
+  useEffect(() => {
+    const handleFilialChanged = () => {
+      const saved = localStorage.getItem("selectedFilial");
+      if (saved && saved !== escopoFilial) {
+        setEscopoFilial(saved);
+        // Invalidar queries específicas para forçar refetch com nova filial
+        utils.financial.getDRESummary.invalidate();
+        utils.financial.getDadosMensais.invalidate();
+        utils.financial.getDREPorMeses.invalidate();
+      }
+    };
+
+    window.addEventListener("filialChanged", handleFilialChanged);
+    window.addEventListener("storage", handleFilialChanged);
+    
+    return () => {
+      window.removeEventListener("filialChanged", handleFilialChanged);
+      window.removeEventListener("storage", handleFilialChanged);
+    };
+  }, [escopoFilial, utils]);
+
+  // Handler para mudança de filial
+  const handleFilialChange = (value: TipoEscopoFilial) => {
+    localStorage.setItem("selectedFilial", value);
+    setEscopoFilial(value);
+    window.dispatchEvent(new Event("filialChanged"));
+    // Invalidar queries específicas para forçar refetch imediato com nova filial
+    utils.financial.getDRESummary.invalidate();
+    utils.financial.getDadosMensais.invalidate();
+    utils.financial.getDREPorMeses.invalidate();
+  };
+
   // Buscar dados do DRE (com filtro de mês e tipo de visualização) - prioridade alta
   const { data: dreData, isLoading: loadingDRE } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
@@ -43,7 +98,7 @@ export default function DRE() {
 
   // Buscar dados mensais para gráfico - carregar em paralelo
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload,
       staleTime: 5 * 60 * 1000, // 5 minutos - dados mensais mudam menos
@@ -52,7 +107,7 @@ export default function DRE() {
 
   // Buscar DRE de todos os meses para tabela horizontal - carregar após dados principais
   const { data: drePorMeses, isLoading: loadingDREPorMeses } = trpc.financial.getDREPorMeses.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload && !!dreData, // Só carrega após DRE principal estar pronto
       staleTime: 5 * 60 * 1000,
@@ -61,7 +116,7 @@ export default function DRE() {
 
   // Buscar dados totais (sem filtro) para comparação - só quando necessário
   const { data: dreTotal, isLoading: loadingDRETotal } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload && !!selectedMonth && !!dreData, // Só busca total quando há filtro de mês e DRE principal pronto
       staleTime: 2 * 60 * 1000,
@@ -176,6 +231,7 @@ export default function DRE() {
           </p>
         </div>
         <div className="flex items-center gap-4 flex-wrap">
+          <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
           <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
           <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
         </div>

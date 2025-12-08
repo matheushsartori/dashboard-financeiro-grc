@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { DataTable } from "@/components/DataTable";
 import { MonthFilter } from "@/components/MonthFilter";
+import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
@@ -28,6 +29,12 @@ export default function Receitas() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  
+  // Buscar filial selecionada do localStorage
+  const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
+    const saved = localStorage.getItem("selectedFilial");
+    return saved || "consolidado";
+  });
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -36,9 +43,59 @@ export default function Receitas() {
     return null;
   }, [uploadId, uploads]);
 
+  // Buscar filiais disponíveis para o filtro dinâmico
+  const { data: filiaisDisponiveis } = trpc.financial.getFiliaisDisponiveis.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  // Utils do tRPC para invalidar queries
+  const utils = trpc.useUtils();
+
+  // Converter escopo de filial para array de códigos
+  const codFilialFilter = useMemo(() => 
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
+    [escopoFilial, filiaisDisponiveis]
+  );
+
+  // Atualizar escopo quando mudar no localStorage (de outros componentes ou header)
+  useEffect(() => {
+    const handleFilialChanged = () => {
+      const saved = localStorage.getItem("selectedFilial");
+      if (saved && saved !== escopoFilial) {
+        setEscopoFilial(saved);
+        // Invalidar queries específicas para forçar refetch com nova filial
+        utils.financial.getContasAReceberSummary.invalidate();
+        utils.financial.getContasAReceber.invalidate();
+        utils.financial.getReceitasMensais.invalidate();
+        utils.financial.getReceitasPorEmpresa.invalidate();
+      }
+    };
+
+    window.addEventListener("filialChanged", handleFilialChanged);
+    window.addEventListener("storage", handleFilialChanged);
+    
+    return () => {
+      window.removeEventListener("filialChanged", handleFilialChanged);
+      window.removeEventListener("storage", handleFilialChanged);
+    };
+  }, [escopoFilial, utils]);
+
+  // Handler para mudança de filial
+  const handleFilialChange = (value: TipoEscopoFilial) => {
+    localStorage.setItem("selectedFilial", value);
+    setEscopoFilial(value);
+    window.dispatchEvent(new Event("filialChanged"));
+    // Invalidar queries específicas para forçar refetch imediato com nova filial
+    utils.financial.getContasAReceberSummary.invalidate();
+    utils.financial.getContasAReceber.invalidate();
+    utils.financial.getReceitasMensais.invalidate();
+    utils.financial.getReceitasPorEmpresa.invalidate();
+  };
+
   // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAReceberSummary.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
@@ -47,7 +104,7 @@ export default function Receitas() {
 
   // Carregar receitas detalhadas em paralelo
   const { data: receitas, isLoading: loadingReceitas } = trpc.financial.getContasAReceber.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
@@ -56,7 +113,7 @@ export default function Receitas() {
 
   // Buscar receitas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: receitasMensais, isLoading: loadingReceitasMensais } = trpc.financial.getReceitasMensais.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
       staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
@@ -65,7 +122,7 @@ export default function Receitas() {
 
   // Buscar receitas por empresa - carregar após summary estar pronto
   const { data: receitasPorEmpresa, isLoading: loadingReceitasPorEmpresa } = trpc.financial.getReceitasPorEmpresa.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
     { 
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -184,7 +241,10 @@ export default function Receitas() {
               Análise detalhada de contas a receber
             </p>
           </div>
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <div className="flex items-center gap-4">
+            <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
+            <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          </div>
         </div>
 
         {selectedMonth && (
