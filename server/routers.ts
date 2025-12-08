@@ -289,6 +289,25 @@ export const appRouter = router({
         return { summary, custoPorArea };
       }),
 
+    // Obter folha de pagamento separada por tipo (Salário, Comissão, Premiação)
+    getFolhaPagamentoSeparada: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getFolhaPagamentoTotalByType } = await import("./db-financial");
+        
+        // Os tipos de pagamento foram identificados na planilha CONSULTA FOLHA
+        const totalSalario = await getFolhaPagamentoTotalByType(input.uploadId, 'SALÁRIO');
+        const totalComissao = await getFolhaPagamentoTotalByType(input.uploadId, 'COMISSÃO VENDAS');
+        const totalPremiacao = await getFolhaPagamentoTotalByType(input.uploadId, 'PREMIAÇÃO');
+
+        return {
+          salario: totalSalario,
+          comissao: totalComissao,
+          premiacao: totalPremiacao,
+          totalGeral: totalSalario + totalComissao + totalPremiacao,
+        };
+      }),
+
     // Obter saldos bancários
     getSaldosBancarios: protectedProcedure
       .input(z.object({ uploadId: z.number() }))

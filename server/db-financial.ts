@@ -878,6 +878,25 @@ export async function getFolhaPagamentoSummary(uploadId: number) {
   return result[0];
 }
 
+export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamento: string) {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({
+      total: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
+    })
+    .from(folhaPagamento)
+    .where(
+      and(
+        eq(folhaPagamento.uploadId, uploadId),
+        eq(folhaPagamento.tipoPagamento, tipoPagamento)
+      )
+    );
+
+  return result[0].total;
+}
+
 export async function getCustoPorArea(uploadId: number) {
   const db = await getDb();
   if (!db) return [];

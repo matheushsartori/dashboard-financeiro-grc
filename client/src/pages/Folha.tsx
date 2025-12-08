@@ -113,47 +113,35 @@ export default function Folha() {
     return { folhaCLT: clt, folhaPJ: pj, folhaIndefinida: indefinida };
   }, [folha]);
 
-  // Separar CLT por tipo de pagamento
-  const { folhaSalario, folhaPremiacao, folhaComissao, folhaOutros } = useMemo(() => {
-    if (!folhaCLT) return { folhaSalario: [], folhaPremiacao: [], folhaComissao: [], folhaOutros: [] };
-    
-    const salario: typeof folhaCLT = [];
-    const premiacao: typeof folhaCLT = [];
-    const comissao: typeof folhaCLT = [];
-    const outros: typeof folhaCLT = [];
-    
-    folhaCLT.forEach((item) => {
-      const tipo = item.tipoPagamento?.toUpperCase() || "";
-      // Verificar comissões primeiro (mais específico)
-      if (tipo.includes("COMISSÃO") || tipo.includes("COMISSAO") || tipo.includes("COMISSÃO VENDAS") || tipo.includes("COMISSAO VENDAS")) {
-        comissao.push(item);
-      } else if (tipo.includes("PREMIAÇÃO") || tipo.includes("PREMIAÇÃO") || tipo.includes("PREMIO")) {
-        premiacao.push(item);
-      } else if (tipo.includes("SALÁRIO") || tipo.includes("SALARIO") || tipo.includes("RETIRADA")) {
-        salario.push(item);
-      } else {
-        outros.push(item);
-      }
-    });
-    
-    return { folhaSalario: salario, folhaPremiacao: premiacao, folhaComissao: comissao, folhaOutros: outros };
-  }, [folhaCLT]);
-
-  // Calcular totais por tipo de pagamento CLT
+  // Calcular totais por tipo de pagamento CLT (usando dados do backend)
   const totaisPorTipo = useMemo(() => {
-    const calcularTotal = (items: typeof folhaCLT) => {
-      const total = items.reduce((sum, item) => sum + (item.total || 0), 0);
-      const funcionarios = new Set(items.map(item => item.nome)).size;
-      return { total, funcionarios };
+    if (!folhaSeparada) {
+      return {
+        salario: { total: 0, funcionarios: 0 },
+        premiacao: { total: 0, funcionarios: 0 },
+        comissao: { total: 0, funcionarios: 0 },
+        outros: { total: 0, funcionarios: 0 },
+      };
+    }
+
+    // A contagem de funcionários por tipo de pagamento ainda precisa ser feita no frontend
+    // pois o backend retorna apenas o total em valor.
+    const getFuncionariosPorTipo = (tipoPagamento: string) => {
+      if (!folhaCLT) return 0;
+      const nomes = new Set(folhaCLT
+        .filter(item => item.tipoPagamento?.toUpperCase() === tipoPagamento)
+        .map(item => item.nome)
+      );
+      return nomes.size;
     };
 
     return {
-      salario: calcularTotal(folhaSalario),
-      premiacao: calcularTotal(folhaPremiacao),
-      comissao: calcularTotal(folhaComissao),
-      outros: calcularTotal(folhaOutros),
+      salario: { total: folhaSeparada.salario, funcionarios: getFuncionariosPorTipo('SALÁRIO') },
+      premiacao: { total: folhaSeparada.premiacao, funcionarios: getFuncionariosPorTipo('PREMIAÇÃO') },
+      comissao: { total: folhaSeparada.comissao, funcionarios: getFuncionariosPorTipo('COMISSÃO VENDAS') },
+      outros: { total: 0, funcionarios: 0 }, // Outros não é calculado separadamente no backend
     };
-  }, [folhaSalario, folhaPremiacao, folhaComissao, folhaOutros]);
+  }, [folhaSeparada, folhaCLT]);
 
   // Calcular totais por tipo
   const totaisCLT = useMemo(() => {
