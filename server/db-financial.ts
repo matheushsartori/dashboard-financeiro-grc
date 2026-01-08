@@ -718,7 +718,17 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
   }
   
   if (mes !== null && mes !== undefined) {
-    whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
+    // Filtrar por mês: usar campo MÊS ou extrair da data de recebimento quando MÊS for NULL
+    whereCondition = and(
+      whereCondition,
+      or(
+        eq(contasAReceber.mes, mes),
+        and(
+          isNull(contasAReceber.mes),
+          sql`EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento}) = ${mes}`
+        )
+      )
+    );
   }
 
   // Filtrar por tipo de visualização
@@ -1190,17 +1200,18 @@ export async function getReceitasMensais(uploadId: number, codFilial?: number[] 
     whereCondition = and(whereCondition, filialFilter);
   }
 
+  // Usar EXTRACT(MONTH FROM data_recebimento) quando mes for NULL para garantir que todos os registros sejam incluídos
   const receitasPorMes = await db
     .select({
-      mes: contasAReceber.mes,
+      mes: sql<number>`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`,
       totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
       totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
     .where(whereCondition)
-    .groupBy(contasAReceber.mes)
-    .orderBy(asc(contasAReceber.mes));
+    .groupBy(sql`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`)
+    .orderBy(asc(sql`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`));
 
   return receitasPorMes
     .filter(r => r.mes !== null && r.mes !== undefined)
@@ -1281,17 +1292,18 @@ export async function getDadosMensais(uploadId: number, codFilial?: number[] | n
   }
 
   // Buscar receitas por mês - apenas valores realmente recebidos
+  // Usar EXTRACT(MONTH FROM data_recebimento) quando mes for NULL para garantir que todos os registros sejam incluídos
   const receitasPorMes = await db
     .select({
-      mes: contasAReceber.mes,
+      mes: sql<number>`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`,
       totalValor: sql<number>`COALESCE(SUM(${contasAReceber.valor}), 0)`,
       totalRecebido: sql<number>`COALESCE(SUM(${contasAReceber.valorRecebido}), 0)`,
       totalRegistros: sql<number>`COUNT(*)`,
     })
     .from(contasAReceber)
     .where(whereReceitas)
-    .groupBy(contasAReceber.mes)
-    .orderBy(asc(contasAReceber.mes));
+    .groupBy(sql`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`)
+    .orderBy(asc(sql`COALESCE(${contasAReceber.mes}, EXTRACT(MONTH FROM ${contasAReceber.dataRecebimento})::int)`));
 
   let whereDespesas: any = eq(contasAPagar.uploadId, uploadId);
   const filialFilterDespesas = buildFilialFilter(codFilial, contasAPagar.codFilial);
@@ -1776,10 +1788,11 @@ function categorizarDespesaPessoal(
 export async function getDespesasPessoalCategorizadas(
   uploadId: number,
   codFilial?: number[] | null,
-  mes?: number | null
+  mes?: number | null,
+  ano?: number | null
 ) {
   const db = await getDb();
-  if (!db) return { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+  if (!db) return [];
 
   let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
   
@@ -1790,6 +1803,14 @@ export async function getDespesasPessoalCategorizadas(
   
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Filtrar por ano usando a data de pagamento
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(
+      whereCondition,
+      sql`EXTRACT(YEAR FROM ${contasAPagar.dataPagamento}) = ${ano}`
+    );
   }
 
   // Buscar todas as despesas que podem ser de pessoal
@@ -1804,13 +1825,12 @@ export async function getDespesasPessoalCategorizadas(
     .where(whereCondition);
 
   // Categorizar e somar
-  const categorias = {
+  const categorias: Record<string, number> = {
     salario: 0,
     comissao: 0,
     bonus: 0,
-    prolabore: 0,
-    outras: 0,
-    total: 0,
+    "pro-labore": 0,
+    outros: 0,
   };
 
   for (const despesa of despesas) {
@@ -1821,11 +1841,15 @@ export async function getDespesasPessoalCategorizadas(
     );
     
     const valor = Number(despesa.valorPago || 0);
-    categorias[categoria] += valor;
-    categorias.total += valor;
+    const catKey = categoria === "prolabore" ? "pro-labore" : categoria === "outras" ? "outros" : categoria;
+    categorias[catKey] = (categorias[catKey] || 0) + valor;
   }
 
-  return categorias;
+  // Retornar como array
+  return Object.entries(categorias).map(([categoria, total]) => ({
+    categoria,
+    total,
+  }));
 }
 
 // Obter despesas de pessoal detalhadas por categoria
@@ -1864,4 +1888,154 @@ export async function getDespesasPessoalDetalhadas(
     );
     return cat === categoria;
   });
+}
+
+// Obter folha de pagamento baseada em despesas de pessoal (da aba PAGO)
+// Agrupada por mês de pagamento e categoria
+export async function getFolhaPagamentoPorDespesas(
+  uploadId: number,
+  codFilial?: number[] | null,
+  mes?: number | null
+) {
+  const db = await getDb();
+  if (!db) return { porMes: [], porCategoria: { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 } };
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Buscar todas as despesas de pessoal com data de pagamento
+  const despesas = await db
+    .select({
+      despesaAnalitico: contasAPagar.despesaAnalitico,
+      descricaoDespesaAnalitica: contasAPagar.descricaoDespesaAnalitica,
+      historico: contasAPagar.historico,
+      valorPago: contasAPagar.valorPago,
+      dataPagamento: contasAPagar.dataPagamento,
+      mes: contasAPagar.mes,
+      fornecedor: contasAPagar.fornecedor,
+      codFilial: contasAPagar.codFilial,
+    })
+    .from(contasAPagar)
+    .where(whereCondition);
+
+  // Agrupar por mês e categoria
+  const porMes: Record<number, { salario: number, comissao: number, bonus: number, prolabore: number, outras: number, total: number }> = {};
+  const porCategoria = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+
+  for (const despesa of despesas) {
+    const categoria = categorizarDespesaPessoal(
+      despesa.despesaAnalitico,
+      despesa.descricaoDespesaAnalitica,
+      despesa.historico
+    );
+    
+    const valor = Number(despesa.valorPago || 0);
+    
+    // Agrupar por mês (usar mês do campo MÊS ou extrair da data de pagamento)
+    let mesDespesa = despesa.mes;
+    if (!mesDespesa && despesa.dataPagamento) {
+      const data = new Date(despesa.dataPagamento);
+      mesDespesa = data.getMonth() + 1;
+    }
+    
+    if (mesDespesa) {
+      if (!porMes[mesDespesa]) {
+        porMes[mesDespesa] = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+      }
+      porMes[mesDespesa][categoria] += valor;
+      porMes[mesDespesa].total += valor;
+    }
+    
+    // Total por categoria
+    porCategoria[categoria] += valor;
+    porCategoria.total += valor;
+  }
+
+  // Converter para array ordenado
+  const porMesArray = Object.entries(porMes)
+    .map(([mes, valores]) => ({
+      mes: parseInt(mes),
+      ...valores,
+    }))
+    .sort((a, b) => a.mes - b.mes);
+
+  return { porMes: porMesArray, porCategoria };
+}
+
+// Obter detalhes de folha de pagamento por categoria e mês
+export async function getFolhaPagamentoDetalhada(
+  uploadId: number,
+  categoria: "salario" | "comissao" | "bonus" | "prolabore",
+  codFilial?: number[] | null,
+  mes?: number | null,
+  ano?: number | null
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Filtrar por ano usando a data de pagamento
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(
+      whereCondition,
+      sql`EXTRACT(YEAR FROM ${contasAPagar.dataPagamento}) = ${ano}`
+    );
+  }
+
+  // Buscar todas as despesas
+  const despesas = await db
+    .select({
+      id: contasAPagar.id,
+      despesaAnalitico: contasAPagar.despesaAnalitico,
+      descricaoDespesaAnalitica: contasAPagar.descricaoDespesaAnalitica,
+      historico: contasAPagar.historico,
+      valorPago: contasAPagar.valorPago,
+      dataPagamento: contasAPagar.dataPagamento,
+      mes: contasAPagar.mes,
+      fornecedor: contasAPagar.fornecedor,
+      codFilial: contasAPagar.codFilial,
+    })
+    .from(contasAPagar)
+    .where(whereCondition);
+
+  // Filtrar pela categoria e retornar detalhes
+  return despesas
+    .filter(despesa => {
+      const cat = categorizarDespesaPessoal(
+        despesa.despesaAnalitico,
+        despesa.descricaoDespesaAnalitica,
+        despesa.historico
+      );
+      return cat === categoria;
+    })
+    .map(despesa => ({
+      id: despesa.id,
+      categoria,
+      descricao: despesa.descricaoDespesaAnalitica || despesa.historico || "Sem descrição",
+      historico: despesa.historico,
+      fornecedor: despesa.fornecedor,
+      valorPago: Number(despesa.valorPago || 0),
+      dataPagamento: despesa.dataPagamento,
+      mes: despesa.mes,
+      codFilial: despesa.codFilial,
+      despesaAnalitico: despesa.despesaAnalitico,
+    }));
 }

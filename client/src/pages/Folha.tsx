@@ -1,15 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Loader2, Briefcase, UserCheck, DollarSign, Award, TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
 import { DataTable } from "@/components/DataTable";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
+import { MonthYearFilter } from "@/components/MonthYearFilter";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -61,6 +62,8 @@ function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: 
 export default function Folha() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
   const latestUpload = useMemo(() => {
@@ -94,8 +97,47 @@ export default function Folha() {
     }
   );
 
+  // Buscar folha baseada em despesas de pessoal (da aba PAGO)
+  const { data: folhaPorDespesas, isLoading: loadingFolhaPorDespesas } = trpc.financial.getFolhaPagamentoPorDespesas.useQuery(
+    { uploadId: latestUpload! },
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
+  );
+
+  // Buscar despesas de pessoal categorizadas
+  const { data: despesasCategorizadas, isLoading: loadingDespesasCategorizadas } = trpc.financial.getDespesasPessoalCategorizadas.useQuery(
+    { uploadId: latestUpload!, mes: selectedMonth, ano: selectedYear },
+    { 
+      enabled: !!latestUpload,
+      staleTime: 3 * 60 * 1000,
+    }
+  );
+
+  // Buscar detalhes por categoria
+  const { data: detalhesSalario, isLoading: loadingDetalhesSalario } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
+    { uploadId: latestUpload!, categoria: "salario", mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
+  const { data: detalhesComissao, isLoading: loadingDetalhesComissao } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
+    { uploadId: latestUpload!, categoria: "comissao", mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
+  const { data: detalhesBonus, isLoading: loadingDetalhesBonus } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
+    { uploadId: latestUpload!, categoria: "bonus", mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
+  const { data: detalhesProlabore, isLoading: loadingDetalhesProlabore } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
+    { uploadId: latestUpload!, categoria: "prolabore", mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
   // Combinar todos os estados de loading
-  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha || loadingFolhaSeparada));
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha || loadingFolhaSeparada || loadingFolhaPorDespesas || loadingDespesasCategorizadas));
 
   // Separar folha em CLT e PJ (sempre executar, mesmo que folha seja undefined)
   // Usar tipoVinculo do banco se disponível, senão usar heurística
@@ -365,88 +407,457 @@ export default function Folha() {
 
   return (
       <div className="container max-w-7xl py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Folha de Pagamento</h1>
-          <p className="text-muted-foreground">
-            Análise de custos com pessoal
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Folha de Pagamento</h1>
+            <p className="text-muted-foreground">
+              Análise de custos com pessoal baseada nas despesas realizadas
+            </p>
+          </div>
+          <MonthYearFilter 
+            month={selectedMonth} 
+            year={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
         </div>
 
-        {/* Cards de Resumo Geral */}
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Custo Total da Folha</CardTitle>
-              <Users className="h-4 w-4 text-amber-500" />
+        {/* Cards de Resumo Geral - usando dados das despesas categorizadas */}
+        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-4 mb-8">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Custo Total da Folha</CardTitle>
+                <Users className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">
+                  {formatCurrency(
+                    despesasCategorizadas
+                      .filter(item => item.categoria !== "outros")
+                      .reduce((sum, item) => sum + item.total, 0)
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total de custos com pessoal (salários, comissões, bônus e pro-labore)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Salários</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(despesasCategorizadas.find(item => item.categoria === "salario")?.total || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Folha de salários
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Comissões</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(despesasCategorizadas.find(item => item.categoria === "comissao")?.total || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Comissões de vendas
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Bônus e Pro-labore</CardTitle>
+                <Award className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(
+                    (despesasCategorizadas.find(item => item.categoria === "bonus")?.total || 0) +
+                    (despesasCategorizadas.find(item => item.categoria === "pro-labore")?.total || 0)
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Bônus e pro-labore
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Seção: Folha baseada em despesas de pessoal (aba PAGO) */}
+        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Folha de Pagamento por Categoria</CardTitle>
+              <CardDescription>
+                Análise baseada nas despesas de pessoal pagas, categorizadas por tipo (salários, comissões, bônus e pro-labore)
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-amber-600">
-                {formatCurrency(summary?.summary?.totalFolha)}
+              <div className="grid gap-4 md:grid-cols-4 mb-6">
+                {despesasCategorizadas
+                  .filter(item => item.categoria !== "outros") // Ocultar "outros" que geralmente não é despesa de pessoal
+                  .map((item) => {
+                  const categoriaLabels: Record<string, { label: string; icon: any; color: string }> = {
+                    salario: { label: "Salários", icon: DollarSign, color: "text-blue-600" },
+                    comissao: { label: "Comissões", icon: TrendingUp, color: "text-green-600" },
+                    bonus: { label: "Bônus", icon: Award, color: "text-amber-600" },
+                    "pro-labore": { label: "Pro-labore", icon: Briefcase, color: "text-purple-600" },
+                  };
+                  const info = categoriaLabels[item.categoria] || { label: item.categoria, icon: Users, color: "text-gray-600" };
+                  const Icon = info.icon;
+                  return (
+                    <Card key={item.categoria}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">{info.label}</CardTitle>
+                        <Icon className={`h-4 w-4 ${info.color}`} />
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`text-2xl font-bold ${info.color}`}>
+                          {formatCurrency(item.total)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {item.categoria === "salario" && "Folha de salários"}
+                          {item.categoria === "comissao" && "Comissões de vendas"}
+                          {item.categoria === "bonus" && "Bônus e gratificações"}
+                          {item.categoria === "pro-labore" && "Pro-labore"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Total de custos com pessoal
-              </p>
+
+              {/* Gráfico por mês */}
+              {folhaPorDespesas && folhaPorDespesas.porMes && folhaPorDespesas.porMes.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-4">Evolução Mensal por Categoria</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={folhaPorDespesas.porMes.map(m => ({
+                      mes: `Mês ${m.mes}`,
+                      Salários: m.salario / 100,
+                      Comissões: m.comissao / 100,
+                      Bônus: m.bonus / 100,
+                      "Pro-labore": m.prolabore / 100,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="mes" />
+                      <YAxis />
+                      <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
+                      <Legend />
+                      <Bar dataKey="Salários" fill="#3b82f6" />
+                      <Bar dataKey="Comissões" fill="#10b981" />
+                      <Bar dataKey="Bônus" fill="#f59e0b" />
+                      <Bar dataKey="Pro-labore" fill="#8b5cf6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
+        )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total CLT</CardTitle>
-              <UserCheck className="h-4 w-4 text-blue-500" />
+        {/* Tabela descritiva por categoria */}
+        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Detalhamento por Categoria</CardTitle>
+              <CardDescription>
+                Visualize todos os registros detalhados de cada categoria de despesa de pessoal
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(totaisCLT.total)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {totaisCLT.funcionarios} funcionários CLT
-              </p>
+              <Tabs defaultValue="salario" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="salario" className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    Salários
+                  </TabsTrigger>
+                  <TabsTrigger value="comissao" className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    Comissões
+                  </TabsTrigger>
+                  <TabsTrigger value="bonus" className="flex items-center gap-2">
+                    <Award className="h-4 w-4" />
+                    Bônus
+                  </TabsTrigger>
+                  <TabsTrigger value="prolabore" className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4" />
+                    Pro-labore
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Tab Salários */}
+                <TabsContent value="salario" className="mt-6">
+                  {loadingDetalhesSalario ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <DataTable
+                      data={detalhesSalario || []}
+                      columns={[
+                        {
+                          key: "fornecedor",
+                          label: "Fornecedor/Funcionário",
+                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+                        },
+                        {
+                          key: "despesaAnalitico",
+                          label: "Código Analítico",
+                          render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
+                        },
+                        {
+                          key: "descricao",
+                          label: "Descrição",
+                          render: (value) => <span className="text-sm">{value || "-"}</span>,
+                        },
+                        {
+                          key: "historico",
+                          label: "Histórico",
+                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                        },
+                        {
+                          key: "codFilial",
+                          label: "Filial",
+                          render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
+                        },
+                        {
+                          key: "dataPagamento",
+                          label: "Data Pagamento",
+                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                        },
+                        {
+                          key: "mes",
+                          label: "Mês",
+                          render: (value) => {
+                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                            return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
+                          },
+                        },
+                        {
+                          key: "valorPago",
+                          label: "Valor Pago",
+                          render: (value) => (
+                            <span className="font-bold text-blue-600">{formatCurrency(value)}</span>
+                          ),
+                          className: "text-right",
+                        },
+                      ]}
+                      searchable={true}
+                      searchPlaceholder="Buscar por fornecedor, descrição..."
+                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                      pageSize={15}
+                      emptyMessage="Nenhum registro de salário encontrado"
+                    />
+                  )}
+                </TabsContent>
+
+                {/* Tab Comissões */}
+                <TabsContent value="comissao" className="mt-6">
+                  {loadingDetalhesComissao ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <DataTable
+                      data={detalhesComissao || []}
+                      columns={[
+                        {
+                          key: "fornecedor",
+                          label: "Fornecedor/Funcionário",
+                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+                        },
+                        {
+                          key: "despesaAnalitico",
+                          label: "Código Analítico",
+                          render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
+                        },
+                        {
+                          key: "descricao",
+                          label: "Descrição",
+                          render: (value) => <span className="text-sm">{value || "-"}</span>,
+                        },
+                        {
+                          key: "historico",
+                          label: "Histórico",
+                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                        },
+                        {
+                          key: "codFilial",
+                          label: "Filial",
+                          render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
+                        },
+                        {
+                          key: "dataPagamento",
+                          label: "Data Pagamento",
+                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                        },
+                        {
+                          key: "mes",
+                          label: "Mês",
+                          render: (value) => {
+                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                            return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
+                          },
+                        },
+                        {
+                          key: "valorPago",
+                          label: "Valor Pago",
+                          render: (value) => (
+                            <span className="font-bold text-green-600">{formatCurrency(value)}</span>
+                          ),
+                          className: "text-right",
+                        },
+                      ]}
+                      searchable={true}
+                      searchPlaceholder="Buscar por fornecedor, descrição..."
+                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                      pageSize={15}
+                      emptyMessage="Nenhum registro de comissão encontrado"
+                    />
+                  )}
+                </TabsContent>
+
+                {/* Tab Bônus */}
+                <TabsContent value="bonus" className="mt-6">
+                  {loadingDetalhesBonus ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <DataTable
+                      data={detalhesBonus || []}
+                      columns={[
+                        {
+                          key: "fornecedor",
+                          label: "Fornecedor/Funcionário",
+                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+                        },
+                        {
+                          key: "descricao",
+                          label: "Descrição",
+                          render: (value) => value || "-",
+                        },
+                        {
+                          key: "historico",
+                          label: "Histórico",
+                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                        },
+                        {
+                          key: "dataPagamento",
+                          label: "Data Pagamento",
+                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                        },
+                        {
+                          key: "mes",
+                          label: "Mês",
+                          render: (value) => {
+                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                            return value ? meses[value] || value : "-";
+                          },
+                        },
+                        {
+                          key: "valorPago",
+                          label: "Valor Pago",
+                          render: (value) => (
+                            <span className="font-bold text-amber-600">{formatCurrency(value)}</span>
+                          ),
+                          className: "text-right",
+                        },
+                      ]}
+                      searchable={true}
+                      searchPlaceholder="Buscar por fornecedor, descrição..."
+                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                      pageSize={15}
+                      emptyMessage="Nenhum registro de bônus encontrado"
+                    />
+                  )}
+                </TabsContent>
+
+                {/* Tab Pro-labore */}
+                <TabsContent value="prolabore" className="mt-6">
+                  {loadingDetalhesProlabore ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
+                    <DataTable
+                      data={detalhesProlabore || []}
+                      columns={[
+                        {
+                          key: "fornecedor",
+                          label: "Fornecedor/Funcionário",
+                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+                        },
+                        {
+                          key: "descricao",
+                          label: "Descrição",
+                          render: (value) => value || "-",
+                        },
+                        {
+                          key: "historico",
+                          label: "Histórico",
+                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                        },
+                        {
+                          key: "dataPagamento",
+                          label: "Data Pagamento",
+                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                        },
+                        {
+                          key: "mes",
+                          label: "Mês",
+                          render: (value) => {
+                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                            return value ? meses[value] || value : "-";
+                          },
+                        },
+                        {
+                          key: "valorPago",
+                          label: "Valor Pago",
+                          render: (value) => (
+                            <span className="font-bold text-purple-600">{formatCurrency(value)}</span>
+                          ),
+                          className: "text-right",
+                        },
+                      ]}
+                      searchable={true}
+                      searchPlaceholder="Buscar por fornecedor, descrição..."
+                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                      pageSize={15}
+                      emptyMessage="Nenhum registro de pro-labore encontrado"
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
+        )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total PJ</CardTitle>
-              <Briefcase className="h-4 w-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {formatCurrency(totaisPJ.total)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {totaisPJ.funcionarios} prestadores PJ
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Funcionários</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {summary?.summary?.totalFuncionarios || 0}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Funcionários únicos
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabs para CLT e PJ */}
-        <Tabs defaultValue="clt" className="mb-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="clt" className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              CLT ({totaisCLT.funcionarios})
-            </TabsTrigger>
-            <TabsTrigger value="pj" className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4" />
-              PJ ({totaisPJ.funcionarios})
-            </TabsTrigger>
-          </TabsList>
+        {/* Tabs para CLT e PJ - só mostrar se houver dados */}
+        {(totaisCLT.total > 0 || totaisPJ.total > 0) && (
+          <Tabs defaultValue="clt" className="mb-8">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="clt" className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                CLT ({totaisCLT.funcionarios})
+              </TabsTrigger>
+              <TabsTrigger value="pj" className="flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                PJ ({totaisPJ.funcionarios})
+              </TabsTrigger>
+            </TabsList>
 
           {/* Aba CLT */}
           <TabsContent value="clt" className="space-y-6">
@@ -1605,7 +2016,8 @@ export default function Folha() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        )}
       </div>
   );
 }

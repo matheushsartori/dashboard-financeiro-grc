@@ -331,10 +331,11 @@ export const appRouter = router({
         uploadId: z.number(),
         codFilial: z.array(z.number()).nullable().optional(),
         mes: z.number().nullable().optional(),
+        ano: z.number().nullable().optional(),
       }))
       .query(async ({ input }) => {
         const { getDespesasPessoalCategorizadas } = await import("./db-financial");
-        return getDespesasPessoalCategorizadas(input.uploadId, input.codFilial, input.mes);
+        return getDespesasPessoalCategorizadas(input.uploadId, input.codFilial, input.mes, input.ano);
       }),
 
     // Obter despesas de pessoal detalhadas por categoria
@@ -348,6 +349,32 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getDespesasPessoalDetalhadas } = await import("./db-financial");
         return getDespesasPessoalDetalhadas(input.uploadId, input.categoria, input.codFilial, input.mes);
+      }),
+
+    // Obter folha de pagamento baseada em despesas de pessoal (da aba PAGO)
+    getFolhaPagamentoPorDespesas: protectedProcedure
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).nullable().optional(),
+        mes: z.number().nullable().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getFolhaPagamentoPorDespesas } = await import("./db-financial");
+        return getFolhaPagamentoPorDespesas(input.uploadId, input.codFilial, input.mes);
+      }),
+
+    // Obter detalhes de folha de pagamento por categoria
+    getFolhaPagamentoDetalhada: protectedProcedure
+      .input(z.object({ 
+        uploadId: z.number(),
+        categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
+        codFilial: z.array(z.number()).nullable().optional(),
+        mes: z.number().nullable().optional(),
+        ano: z.number().nullable().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getFolhaPagamentoDetalhada } = await import("./db-financial");
+        return getFolhaPagamentoDetalhada(input.uploadId, input.categoria, input.codFilial, input.mes, input.ano);
       }),
 
     // Obter filiais disponíveis para um upload

@@ -314,7 +314,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         dataVencimento,
         valorPago: toCents(row["VPAGO"]),
         dataPagamento,
-        mes: row["MÊS"] ? Number(row["MÊS"]) : getMonth(dataLancamento),
+        mes: row["MÊS"] ? Number(row["MÊS"]) : (dataPagamento ? getMonth(dataPagamento) : (dataLancamento ? getMonth(dataLancamento) : null)),
         numBanco: row["NUMBANCO"] ? String(row["NUMBANCO"]) : null,
         banco: row["BANCO"] || row["BANCO "] || null, // Pode ter espaço no final
         agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
@@ -355,7 +355,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         dataVencimento,
         valorRecebido: toCents(row["VPAGO"]),
         dataRecebimento,
-        mes: row["MÊS"] ? Number(row["MÊS"]) : getMonth(dataLancamento),
+        mes: row["MÊS"] ? Number(row["MÊS"]) : (dataRecebimento ? getMonth(dataRecebimento) : (dataLancamento ? getMonth(dataLancamento) : null)),
         numBanco: row["NUM BANCO"] ? String(row["NUM BANCO"]) : null, // Note: "NUM BANCO" com espaço
         banco: null, // Não existe na nova estrutura de RECEBIDO
         agencia: null, // Não existe na nova estrutura de RECEBIDO
