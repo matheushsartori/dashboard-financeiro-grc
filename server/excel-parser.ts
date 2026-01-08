@@ -11,7 +11,34 @@ import {
 // Função auxiliar para converter valores monetários para centavos
 function toCents(value: any): number {
   if (value === null || value === undefined || value === "") return 0;
-  const num = typeof value === "string" ? parseFloat(value.replace(/[^\d.-]/g, "")) : Number(value);
+  
+  // Se já é número, converter diretamente
+  if (typeof value === "number") {
+    return Math.round(value * 100);
+  }
+  
+  // Se é string, limpar e converter
+  if (typeof value === "string") {
+    // Remover "R$", espaços e outros caracteres não numéricos
+    // Manter apenas dígitos, pontos, vírgulas e hífen (para negativos)
+    let cleaned = value.replace(/[^\d.,-]/g, "");
+    
+    // Se tem vírgula e ponto, assumir que vírgula é separador decimal (formato brasileiro)
+    if (cleaned.includes(",") && cleaned.includes(".")) {
+      // Formato: 1.234,56 -> remover ponto de milhar, vírgula vira ponto
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else if (cleaned.includes(",")) {
+      // Apenas vírgula -> separador decimal
+      cleaned = cleaned.replace(",", ".");
+    }
+    // Se só tem ponto, assumir que é separador decimal
+    
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : Math.round(num * 100);
+  }
+  
+  // Para outros tipos, tentar converter para número
+  const num = Number(value);
   return isNaN(num) ? 0 : Math.round(num * 100);
 }
 
@@ -96,6 +123,76 @@ function getMonth(date: Date | null): number | null {
   return date.getMonth() + 1; // 1-12
 }
 
+// Função para categorizar tipo de despesa de pessoal baseado no código analítico e histórico
+// Baseado na documentação: Salários (600017, 200001, 600026), Comissões (200030, 200031), 
+// Bônus/Gratificações (600020), Pro-labore (900002)
+export function categorizarDespesaPessoal(
+  despesaAnalitico: string | null | undefined,
+  descricaoAnalitica: string | null | undefined,
+  historico: string | null | undefined
+): "salario" | "comissao" | "bonus" | "prolabore" | "outras" {
+  if (!despesaAnalitico && !descricaoAnalitica && !historico) {
+    return "outras";
+  }
+
+  const codigoStr = despesaAnalitico ? String(despesaAnalitico).trim() : "";
+  const descricaoStr = descricaoAnalitica ? String(descricaoAnalitica).toUpperCase() : "";
+  const historicoStr = historico ? String(historico).toUpperCase() : "";
+
+  // Pro-labore: código 900002
+  if (codigoStr === "900002" || descricaoStr.includes("PRO-LABORE") || historicoStr.includes("PRO-LABORE")) {
+    return "prolabore";
+  }
+
+  // Comissões: códigos 200030, 200031
+  if (
+    codigoStr === "200030" ||
+    codigoStr === "200031" ||
+    descricaoStr.includes("COMISSÃO VENDAS") ||
+    descricaoStr.includes("COMISSAO VENDAS") ||
+    historicoStr.includes("COMISSÃO") ||
+    historicoStr.includes("COMISSAO")
+  ) {
+    // Verificar se não é salário de representante (200001 exclui comissões)
+    if (codigoStr !== "200001") {
+      return "comissao";
+    }
+  }
+
+  // Bônus e Gratificações: código 600020
+  if (
+    codigoStr === "600020" ||
+    descricaoStr.includes("GRATIFICAÇÃO") ||
+    descricaoStr.includes("GRATIFICACAO") ||
+    historicoStr.includes("GRATIFICAÇÃO") ||
+    historicoStr.includes("GRATIFICACAO") ||
+    historicoStr.includes("PREMIO") ||
+    historicoStr.includes("PRÊMIO") ||
+    historicoStr.includes("BONUS") ||
+    historicoStr.includes("BÔNUS")
+  ) {
+    return "bonus";
+  }
+
+  // Salários: códigos 600017, 200001, 600026
+  if (
+    codigoStr === "600017" ||
+    codigoStr === "200001" ||
+    codigoStr === "600026" ||
+    descricaoStr.includes("SALARIO") ||
+    descricaoStr.includes("SALÁRIO") ||
+    descricaoStr.includes("FOLHA") ||
+    historicoStr.includes("SALARIO") ||
+    historicoStr.includes("SALÁRIO") ||
+    historicoStr.includes("13º SALARIO") ||
+    historicoStr.includes("13º SALÁRIO")
+  ) {
+    return "salario";
+  }
+
+  return "outras";
+}
+
 export interface ParsedExcelData {
   planoContas: InsertPlanoContas[];
   centrosCusto: InsertCentroCusto[];
@@ -173,9 +270,11 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
     }
   }
 
-  // Parse GERAL A PAGAR
-  if (workbook.SheetNames.includes("GERAL A PAGAR")) {
-    const sheet = workbook.Sheets["GERAL A PAGAR"];
+  // Parse PAGO (nova estrutura - antes era "GERAL A PAGAR")
+  // Suporta ambos os nomes para compatibilidade
+  const sheetNamePago = workbook.SheetNames.includes("PAGO") ? "PAGO" : "GERAL A PAGAR";
+  if (workbook.SheetNames.includes(sheetNamePago)) {
+    const sheet = workbook.Sheets[sheetNamePago];
     const data = XLSX.utils.sheet_to_json(sheet) as any[];
 
     for (const row of data) {
@@ -183,17 +282,26 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
       const dataVencimento = parseExcelDate(row["DTVENC"]);
       const dataPagamento = parseExcelDate(row["DTPAGTO"]);
 
+      // Normalizar FIXO OU VARIAVÉL (pode ter variações como "VARIAVEL" sem acento)
+      let fixoVariavel: "FIXO" | "VARIÁVEL" | null = null;
+      const fixoVariavelValue = row["FIXO OU VARIAVÉL"];
+      if (fixoVariavelValue) {
+        const normalized = String(fixoVariavelValue).toUpperCase().trim();
+        if (normalized === "FIXO") fixoVariavel = "FIXO";
+        else if (normalized === "VARIÁVEL" || normalized === "VARIAVEL") fixoVariavel = "VARIÁVEL";
+      }
+
       result.contasAPagar.push({
         uploadId,
         ccSintetico: row["CC Síntético"] ? String(row["CC Síntético"]) : null,
         descricaoCCSintetico: row["Descrição CC SIntético"] || null,
-        ccAnalitico: row["CC Analítico"] ? String(row["CC Analítico"]) : null,
-        descricaoCCAnalitico: row["Descrição CC Analítico"] || null,
+        ccAnalitico: null, // Não existe na nova estrutura
+        descricaoCCAnalitico: null, // Não existe na nova estrutura
         despesaSintetico: row["Despesa Sintético"] ? String(row["Despesa Sintético"]) : null,
         descricaoDespesaSintetico: row["Descrição Despesa Sintético"] || null,
         despesaAnalitico: row["Despesa Analítico"] ? String(row["Despesa Analítico"]) : null,
         descricaoDespesaAnalitica: row["Descrição Despesa Analítica"] || null,
-        fixoVariavel: row["FIXO OU VARIAVÉL"] === "FIXO" ? "FIXO" : row["FIXO OU VARIAVÉL"] === "VARIÁVEL" ? "VARIÁVEL" : null,
+        fixoVariavel,
         dataLancamento,
         codConta: row["CODCONTA"] ? String(row["CODCONTA"]) : null,
         codFornecedor: row["CODFORNEC"] ? String(row["CODFORNEC"]) : null,
@@ -208,7 +316,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         dataPagamento,
         mes: row["MÊS"] ? Number(row["MÊS"]) : getMonth(dataLancamento),
         numBanco: row["NUMBANCO"] ? String(row["NUMBANCO"]) : null,
-        banco: row["BANCO "] || null,
+        banco: row["BANCO"] || row["BANCO "] || null, // Pode ter espaço no final
         agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
         conta: row["C/C"] ? String(row["C/C"]) : null,
         codFilial: row["CODFILIAL"] ? Number(row["CODFILIAL"]) : null,
@@ -216,9 +324,11 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
     }
   }
 
-  // Parse GERAL A RECEBER
-  if (workbook.SheetNames.includes("GERAL A RECEBER")) {
-    const sheet = workbook.Sheets["GERAL A RECEBER"];
+  // Parse RECEBIDO (nova estrutura - antes era "GERAL A RECEBER")
+  // Suporta ambos os nomes para compatibilidade
+  const sheetNameRecebido = workbook.SheetNames.includes("RECEBIDO") ? "RECEBIDO" : "GERAL A RECEBER";
+  if (workbook.SheetNames.includes(sheetNameRecebido)) {
+    const sheet = workbook.Sheets[sheetNameRecebido];
     const data = XLSX.utils.sheet_to_json(sheet) as any[];
 
     for (const row of data) {
@@ -228,28 +338,28 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
 
       result.contasAReceber.push({
         uploadId,
-        ccSintetico: row["CC Síntético"] ? String(row["CC Síntético"]) : null,
-        descricaoCCSintetico: row["Descrição CC SIntético"] || null,
-        ccAnalitico: row["CC Analítico"] ? String(row["CC Analítico"]) : null,
-        descricaoCCAnalitico: row["Descrição CC Analítico"] || null,
-        receitaSintetico: row["Receita Sintético"] ? String(row["Receita Sintético"]) : null,
-        descricaoReceitaSintetico: row["Descrição Receita Sintético"] || null,
-        receitaAnalitico: row["Receita Analítico"] ? String(row["Receita Analítico"]) : null,
-        descricaoReceitaAnalitica: row["Descrição Receita Analítica"] || null,
+        ccSintetico: null, // Não existe na nova estrutura de RECEBIDO
+        descricaoCCSintetico: null, // Não existe na nova estrutura de RECEBIDO
+        ccAnalitico: null, // Não existe na nova estrutura de RECEBIDO
+        descricaoCCAnalitico: null, // Não existe na nova estrutura de RECEBIDO
+        receitaSintetico: null, // Não existe na nova estrutura de RECEBIDO
+        descricaoReceitaSintetico: null, // Não existe na nova estrutura de RECEBIDO
+        receitaAnalitico: null, // Não existe na nova estrutura de RECEBIDO
+        descricaoReceitaAnalitica: null, // Não existe na nova estrutura de RECEBIDO
         dataLancamento,
         cliente: row["NOME"] || null,
-        historico: row["HISTORICO"] || null,
-        tipoDocumento: row["TIPO DE DOCUMENTO"] || null,
-        numNota: row["NUMNOTA"] ? String(row["NUMNOTA"]) : null,
+        historico: row["HISTÓRICO"] || row["HISTORICO"] || null, // Pode ter acento ou não
+        tipoDocumento: null, // Não existe na nova estrutura de RECEBIDO
+        numNota: null, // Não existe na nova estrutura de RECEBIDO
         valor: toCents(row["VALOR"]),
         dataVencimento,
         valorRecebido: toCents(row["VPAGO"]),
         dataRecebimento,
         mes: row["MÊS"] ? Number(row["MÊS"]) : getMonth(dataLancamento),
-        numBanco: row["NUMBANCO"] ? String(row["NUMBANCO"]) : null,
-        banco: row["BANCO "] || null,
-        agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
-        conta: row["C/C"] ? String(row["C/C"]) : null,
+        numBanco: row["NUM BANCO"] ? String(row["NUM BANCO"]) : null, // Note: "NUM BANCO" com espaço
+        banco: null, // Não existe na nova estrutura de RECEBIDO
+        agencia: null, // Não existe na nova estrutura de RECEBIDO
+        conta: null, // Não existe na nova estrutura de RECEBIDO
         codFilial: row["CODFILIAL"] ? Number(row["CODFILIAL"]) : null,
       });
     }

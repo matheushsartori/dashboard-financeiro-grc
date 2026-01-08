@@ -325,6 +325,31 @@ export const appRouter = router({
         return getSaldosBancariosByUpload(input.uploadId);
       }),
 
+    // Obter despesas de pessoal categorizadas (salários, comissões, bônus, pro-labore)
+    getDespesasPessoalCategorizadas: protectedProcedure
+      .input(z.object({ 
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).nullable().optional(),
+        mes: z.number().nullable().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getDespesasPessoalCategorizadas } = await import("./db-financial");
+        return getDespesasPessoalCategorizadas(input.uploadId, input.codFilial, input.mes);
+      }),
+
+    // Obter despesas de pessoal detalhadas por categoria
+    getDespesasPessoalDetalhadas: protectedProcedure
+      .input(z.object({ 
+        uploadId: z.number(),
+        categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
+        codFilial: z.array(z.number()).nullable().optional(),
+        mes: z.number().nullable().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getDespesasPessoalDetalhadas } = await import("./db-financial");
+        return getDespesasPessoalDetalhadas(input.uploadId, input.categoria, input.codFilial, input.mes);
+      }),
+
     // Obter filiais disponíveis para um upload
     getFiliaisDisponiveis: protectedProcedure
       .input(z.object({ uploadId: z.number() }))

@@ -131,10 +131,14 @@ export async function upsertFiliaisFromData(contasAPagar: InsertContaAPagar[], c
   console.log(`[upsertFiliaisFromData] Filiais encontradas: ${Array.from(filiaisEncontradas).sort((a, b) => a - b).join(", ")}`);
 
   // Mapeamento de nomes padrão conhecidos
+  // Baseado na documentação: filiais [1, 3, 4, 5, 6, 7]
   const nomesPadrao: Record<number, string> = {
     1: "Matriz (RP)",
     3: "Sul",
     4: "BH",
+    5: "Filial 5",
+    6: "Filial 6",
+    7: "Filial 7",
   };
 
   // Para cada filial encontrada, criar ou atualizar na tabela
@@ -1582,13 +1586,14 @@ async function getOrCreateNomeFilial(db: any, codigo: number): Promise<string> {
   }
 
   // Se não existir, criar com nome padrão baseado em mapeamento conhecido
-  // Matriz (RP) = Filial 1
-  // Sul = Filial 3
-  // BH = Filial 4
+  // Baseado na documentação: filiais [1, 3, 4, 5, 6, 7]
   const nomesPadrao: Record<number, string> = {
     1: "Matriz (RP)",
     3: "Sul",
     4: "BH",
+    5: "Filial 5",
+    6: "Filial 6",
+    7: "Filial 7",
   };
 
   const nome = nomesPadrao[codigo] || `Filial ${codigo}`;
@@ -1658,11 +1663,15 @@ export async function getFiliaisDisponiveis(uploadId: number) {
 
   // Se não encontrou filiais nos dados, retornar filiais padrão conhecidas
   // (fallback caso a importação não tenha cadastrado as filiais)
+  // Baseado na documentação: filiais [1, 3, 4, 5, 6, 7]
   if (todasFiliais.size === 0) {
     const filiaisPadrao = [
       { codigo: 1, nome: "Matriz (RP)" },
       { codigo: 3, nome: "Sul" },
       { codigo: 4, nome: "BH" },
+      { codigo: 5, nome: "Filial 5" },
+      { codigo: 6, nome: "Filial 6" },
+      { codigo: 7, nome: "Filial 7" },
     ];
     
     // Criar essas filiais na tabela para uso futuro
@@ -1691,4 +1700,168 @@ export async function getFiliaisDisponiveis(uploadId: number) {
   );
 
   return filiaisComNomes;
+}
+
+// ===== DESPESAS DE PESSOAL =====
+
+// Função auxiliar para categorizar despesa de pessoal baseado no código analítico
+function categorizarDespesaPessoal(
+  despesaAnalitico: string | null | undefined,
+  descricaoAnalitica: string | null | undefined,
+  historico: string | null | undefined
+): "salario" | "comissao" | "bonus" | "prolabore" | "outras" {
+  if (!despesaAnalitico && !descricaoAnalitica && !historico) {
+    return "outras";
+  }
+
+  const codigoStr = despesaAnalitico ? String(despesaAnalitico).trim() : "";
+  const descricaoStr = descricaoAnalitica ? String(descricaoAnalitica).toUpperCase() : "";
+  const historicoStr = historico ? String(historico).toUpperCase() : "";
+
+  // Pro-labore: código 900002
+  if (codigoStr === "900002" || descricaoStr.includes("PRO-LABORE") || historicoStr.includes("PRO-LABORE")) {
+    return "prolabore";
+  }
+
+  // Comissões: códigos 200030, 200031
+  if (
+    codigoStr === "200030" ||
+    codigoStr === "200031" ||
+    descricaoStr.includes("COMISSÃO VENDAS") ||
+    descricaoStr.includes("COMISSAO VENDAS") ||
+    historicoStr.includes("COMISSÃO") ||
+    historicoStr.includes("COMISSAO")
+  ) {
+    // Verificar se não é salário de representante (200001 exclui comissões)
+    if (codigoStr !== "200001") {
+      return "comissao";
+    }
+  }
+
+  // Bônus e Gratificações: código 600020
+  if (
+    codigoStr === "600020" ||
+    descricaoStr.includes("GRATIFICAÇÃO") ||
+    descricaoStr.includes("GRATIFICACAO") ||
+    historicoStr.includes("GRATIFICAÇÃO") ||
+    historicoStr.includes("GRATIFICACAO") ||
+    historicoStr.includes("PREMIO") ||
+    historicoStr.includes("PRÊMIO") ||
+    historicoStr.includes("BONUS") ||
+    historicoStr.includes("BÔNUS")
+  ) {
+    return "bonus";
+  }
+
+  // Salários: códigos 600017, 200001, 600026
+  if (
+    codigoStr === "600017" ||
+    codigoStr === "200001" ||
+    codigoStr === "600026" ||
+    descricaoStr.includes("SALARIO") ||
+    descricaoStr.includes("SALÁRIO") ||
+    descricaoStr.includes("FOLHA") ||
+    historicoStr.includes("SALARIO") ||
+    historicoStr.includes("SALÁRIO") ||
+    historicoStr.includes("13º SALARIO") ||
+    historicoStr.includes("13º SALÁRIO")
+  ) {
+    return "salario";
+  }
+
+  return "outras";
+}
+
+// Obter despesas de pessoal categorizadas (salários, comissões, bônus, pro-labore)
+export async function getDespesasPessoalCategorizadas(
+  uploadId: number,
+  codFilial?: number[] | null,
+  mes?: number | null
+) {
+  const db = await getDb();
+  if (!db) return { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Buscar todas as despesas que podem ser de pessoal
+  const despesas = await db
+    .select({
+      despesaAnalitico: contasAPagar.despesaAnalitico,
+      descricaoDespesaAnalitica: contasAPagar.descricaoDespesaAnalitica,
+      historico: contasAPagar.historico,
+      valorPago: contasAPagar.valorPago,
+    })
+    .from(contasAPagar)
+    .where(whereCondition);
+
+  // Categorizar e somar
+  const categorias = {
+    salario: 0,
+    comissao: 0,
+    bonus: 0,
+    prolabore: 0,
+    outras: 0,
+    total: 0,
+  };
+
+  for (const despesa of despesas) {
+    const categoria = categorizarDespesaPessoal(
+      despesa.despesaAnalitico,
+      despesa.descricaoDespesaAnalitica,
+      despesa.historico
+    );
+    
+    const valor = Number(despesa.valorPago || 0);
+    categorias[categoria] += valor;
+    categorias.total += valor;
+  }
+
+  return categorias;
+}
+
+// Obter despesas de pessoal detalhadas por categoria
+export async function getDespesasPessoalDetalhadas(
+  uploadId: number,
+  categoria: "salario" | "comissao" | "bonus" | "prolabore",
+  codFilial?: number[] | null,
+  mes?: number | null
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+  
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+  
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Buscar todas as despesas
+  const despesas = await db
+    .select()
+    .from(contasAPagar)
+    .where(whereCondition);
+
+  // Filtrar pela categoria
+  return despesas.filter(despesa => {
+    const cat = categorizarDespesaPessoal(
+      despesa.despesaAnalitico,
+      despesa.descricaoDespesaAnalitica,
+      despesa.historico
+    );
+    return cat === categoria;
+  });
 }

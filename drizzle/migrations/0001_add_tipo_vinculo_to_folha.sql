@@ -33,3 +33,4 @@ END
 WHERE "tipo_vinculo" IS NULL;
 
 
+
