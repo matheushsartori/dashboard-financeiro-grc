@@ -193,3 +193,55 @@ main {
     radial-gradient(circle at 10% 20%, rgb(59 130 246 / 0.02) 0%, transparent 50%),
     radial-gradient(circle at 90% 80%, rgb(168 85 247 / 0.02) 0%, transparent 50%);
 }
+
+/* Responsividade Mobile - Tabelas e Cards */
+@media (max-width: 640px) {
+  /* Tabelas responsivas com scroll horizontal */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Cards em coluna única */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Reduzir padding em cards pequenos */
+  [class*='Card'] {
+    padding: 0.75rem;
+  }
+  
+  /* Gráficos responsivos */
+  .recharts-wrapper {
+    max-width: 100%;
+  }
+  
+  /* Textos menores em mobile */
+  h1 {
+    font-size: 1.5rem !important;
+  }
+  
+  h2 {
+    font-size: 1.25rem !important;
+  }
+  
+  h3 {
+    font-size: 1.125rem !important;
+  }
+}
+
+/* Melhorar scroll em mobile */
+@media (max-width: 768px) {
+  /* Scroll suave */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Remover margens excessivas */
+  body {
+    overflow-x: hidden;
+  }
+}

@@ -381,33 +381,48 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {/* Header com seletor de filial */}
-        <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-          <div className="flex items-center gap-4 flex-1">
+        {/* Header responsivo */}
+        <div className="flex border-b h-14 md:h-16 items-center justify-between bg-background/95 px-3 md:px-6 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40 gap-2">
+          <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
             {isMobile && (
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
+              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background shrink-0" />
             )}
-            <div className="flex items-center gap-3">
-              <span className="tracking-tight text-foreground font-medium">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <span className="tracking-tight text-foreground font-medium text-sm md:text-base truncate">
                 {activeMenuItem?.label ?? APP_TITLE}
               </span>
             </div>
           </div>
 
-          {/* Seletor de Filial e Theme Toggle no Header */}
-          <div className="flex items-center gap-2">
+          {/* Seletor de Filial e Theme Toggle - Responsivo */}
+          <div className="flex items-center gap-1 md:gap-2 shrink-0">
             <ThemeToggle />
             {latestUpload && (
-              <FilialFilter
-                value={escopoFilial}
-                onChange={handleFilialChange}
-                uploadId={latestUpload}
-                label="Escopo"
-              />
+              <div className="hidden sm:block">
+                <FilialFilter
+                  value={escopoFilial}
+                  onChange={handleFilialChange}
+                  uploadId={latestUpload}
+                  label="Escopo"
+                />
+              </div>
             )}
           </div>
         </div>
-        <main className="flex-1 p-4">{children}</main>
+
+        {/* Filtro de filial mobile - abaixo do header */}
+        {latestUpload && (
+          <div className="sm:hidden border-b bg-background/95 px-3 py-2">
+            <FilialFilter
+              value={escopoFilial}
+              onChange={handleFilialChange}
+              uploadId={latestUpload}
+              label="Escopo"
+            />
+          </div>
+        )}
+
+        <main className="flex-1 p-3 md:p-4 lg:p-6">{children}</main>
       </SidebarInset>
     </>
   );
