@@ -11,6 +11,7 @@ import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/Skeleton";
 import { MonthYearFilter } from "@/components/MonthYearFilter";
+import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 
 function formatCurrency(cents: number | null | undefined): string {
   if (!cents || cents === 0) return "R$ 0,00";
@@ -23,9 +24,9 @@ function formatCurrency(cents: number | null | undefined): string {
 // Função para identificar se é CLT ou PJ baseado no tipoPagamento e área
 function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: string | null | undefined): "CLT" | "PJ" | "INDEFINIDO" {
   if (!tipoPagamento) return "INDEFINIDO";
-  
+
   const tipoUpper = tipoPagamento.toUpperCase();
-  
+
   // Identificadores comuns de PJ
   if (
     tipoUpper.includes("PJ") ||
@@ -38,7 +39,7 @@ function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: 
   ) {
     return "PJ";
   }
-  
+
   // Identificadores comuns de CLT
   if (
     tipoUpper.includes("SALÁRIO") ||
@@ -55,7 +56,7 @@ function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: 
   ) {
     return "CLT";
   }
-  
+
   return "INDEFINIDO";
 }
 
@@ -65,16 +66,35 @@ export default function Folha() {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
+  // Buscar filial selecionada do localStorage
+  const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
+    const saved = localStorage.getItem("selectedFilial");
+    return saved || "consolidado";
+  });
+
   const { data: uploads, isLoading: loadingUploads } = trpc.financial.listUploads.useQuery();
+
   const latestUpload = useMemo(() => {
     if (uploadId) return parseInt(uploadId);
     if (uploads && uploads.length > 0) return uploads[0].id;
     return null;
   }, [uploadId, uploads]);
 
+  // Buscar filiais disponíveis para o filtro dinâmico
+  const { data: filiaisDisponiveis } = trpc.financial.getFiliaisDisponiveis.useQuery(
+    { uploadId: latestUpload! },
+    { enabled: !!latestUpload }
+  );
+
+  // Converter escopo de filial para array de códigos
+  const codFilialFilter = useMemo(() =>
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis),
+    [escopoFilial, filiaisDisponiveis]
+  );
+
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getFolhaPagamentoSummary.useQuery(
     { uploadId: latestUpload! },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
     }
@@ -82,7 +102,7 @@ export default function Folha() {
 
   const { data: folha, isLoading: loadingFolha } = trpc.financial.getFolhaPagamento.useQuery(
     { uploadId: latestUpload! },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
     }
@@ -91,7 +111,7 @@ export default function Folha() {
   // Buscar folha separada por tipo (Salário, Comissão, Premiação)
   const { data: folhaSeparada, isLoading: loadingFolhaSeparada } = trpc.financial.getFolhaPagamentoSeparada.useQuery(
     { uploadId: latestUpload! },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
     }
@@ -100,7 +120,7 @@ export default function Folha() {
   // Buscar folha baseada em despesas de pessoal (da aba PAGO)
   const { data: folhaPorDespesas, isLoading: loadingFolhaPorDespesas } = trpc.financial.getFolhaPagamentoPorDespesas.useQuery(
     { uploadId: latestUpload! },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
     }
@@ -108,8 +128,8 @@ export default function Folha() {
 
   // Buscar despesas de pessoal categorizadas
   const { data: despesasCategorizadas, isLoading: loadingDespesasCategorizadas } = trpc.financial.getDespesasPessoalCategorizadas.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth, ano: selectedYear },
-    { 
+    { uploadId: latestUpload!, codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
+    {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
     }
@@ -117,22 +137,22 @@ export default function Folha() {
 
   // Buscar detalhes por categoria
   const { data: detalhesSalario, isLoading: loadingDetalhesSalario } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
-    { uploadId: latestUpload!, categoria: "salario", mes: selectedMonth, ano: selectedYear },
+    { uploadId: latestUpload!, categoria: "salario", codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
     { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
   );
 
   const { data: detalhesComissao, isLoading: loadingDetalhesComissao } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
-    { uploadId: latestUpload!, categoria: "comissao", mes: selectedMonth, ano: selectedYear },
+    { uploadId: latestUpload!, categoria: "comissao", codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
     { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
   );
 
   const { data: detalhesBonus, isLoading: loadingDetalhesBonus } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
-    { uploadId: latestUpload!, categoria: "bonus", mes: selectedMonth, ano: selectedYear },
+    { uploadId: latestUpload!, categoria: "bonus", codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
     { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
   );
 
   const { data: detalhesProlabore, isLoading: loadingDetalhesProlabore } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
-    { uploadId: latestUpload!, categoria: "prolabore", mes: selectedMonth, ano: selectedYear },
+    { uploadId: latestUpload!, categoria: "prolabore", codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
     { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
   );
 
@@ -143,11 +163,11 @@ export default function Folha() {
   // Usar tipoVinculo do banco se disponível, senão usar heurística
   const { folhaCLT, folhaPJ, folhaIndefinida } = useMemo(() => {
     if (!folha) return { folhaCLT: [], folhaPJ: [], folhaIndefinida: [] };
-    
+
     const clt: typeof folha = [];
     const pj: typeof folha = [];
     const indefinida: typeof folha = [];
-    
+
     folha.forEach((item) => {
       // Priorizar tipoVinculo do banco, se disponível
       let tipo: "CLT" | "PJ" | "INDEFINIDO";
@@ -157,7 +177,7 @@ export default function Folha() {
         // Fallback para heurística se tipoVinculo não estiver disponível
         tipo = identificarTipoVinculo(item.tipoPagamento, item.area);
       }
-      
+
       if (tipo === "CLT") {
         clt.push(item);
       } else if (tipo === "PJ") {
@@ -166,7 +186,7 @@ export default function Folha() {
         indefinida.push(item);
       }
     });
-    
+
     return { folhaCLT: clt, folhaPJ: pj, folhaIndefinida: indefinida };
   }, [folha]);
 
@@ -308,15 +328,15 @@ export default function Folha() {
   // Separar folha CLT por tipo de pagamento
   const folhaSalario = useMemo(() => {
     if (!folhaCLT) return [];
-    return folhaCLT.filter(item => 
-      item.tipoPagamento?.toUpperCase().includes('SALÁRIO') || 
+    return folhaCLT.filter(item =>
+      item.tipoPagamento?.toUpperCase().includes('SALÁRIO') ||
       item.tipoPagamento?.toUpperCase().includes('SALARIO')
     );
   }, [folhaCLT]);
 
   const folhaPremiacao = useMemo(() => {
     if (!folhaCLT) return [];
-    return folhaCLT.filter(item => 
+    return folhaCLT.filter(item =>
       item.tipoPagamento?.toUpperCase().includes('PREMIAÇÃO') ||
       item.tipoPagamento?.toUpperCase().includes('PREMIACAO')
     );
@@ -327,9 +347,9 @@ export default function Folha() {
     return folhaCLT.filter(item => {
       const tipo = item.tipoPagamento?.toUpperCase() || '';
       return tipo.includes('COMISSÃO') ||
-             tipo.includes('COMISSAO') ||
-             tipo.includes('COMISSÃO VENDAS') ||
-             tipo.includes('COMISSAO VENDAS');
+        tipo.includes('COMISSAO') ||
+        tipo.includes('COMISSÃO VENDAS') ||
+        tipo.includes('COMISSAO VENDAS');
     });
   }, [folhaCLT]);
 
@@ -337,12 +357,12 @@ export default function Folha() {
     if (!folhaCLT) return [];
     return folhaCLT.filter(item => {
       const tipo = item.tipoPagamento?.toUpperCase() || '';
-      return !tipo.includes('SALÁRIO') && 
-             !tipo.includes('SALARIO') &&
-             !tipo.includes('PREMIAÇÃO') &&
-             !tipo.includes('PREMIACAO') &&
-             !tipo.includes('COMISSÃO') &&
-             !tipo.includes('COMISSAO');
+      return !tipo.includes('SALÁRIO') &&
+        !tipo.includes('SALARIO') &&
+        !tipo.includes('PREMIAÇÃO') &&
+        !tipo.includes('PREMIACAO') &&
+        !tipo.includes('COMISSÃO') &&
+        !tipo.includes('COMISSAO');
     });
   }, [folhaCLT]);
 
@@ -406,113 +426,117 @@ export default function Folha() {
   }
 
   return (
-      <div className="container max-w-7xl py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Folha de Pagamento</h1>
-            <p className="text-muted-foreground">
-              Análise de custos com pessoal baseada nas despesas realizadas
-            </p>
-          </div>
-          <MonthYearFilter 
-            month={selectedMonth} 
+    <div className="container max-w-7xl py-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Folha de Pagamento</h1>
+          <p className="text-muted-foreground">
+            Análise de custos com pessoal baseada nas despesas realizadas
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <FilialFilter value={escopoFilial} onChange={setEscopoFilial} uploadId={latestUpload} />
+          <MonthYearFilter
+            month={selectedMonth}
             year={selectedYear}
             onMonthChange={setSelectedMonth}
             onYearChange={setSelectedYear}
           />
         </div>
+      </div>
 
-        {/* Cards de Resumo Geral - usando dados das despesas categorizadas */}
-        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Custo Total da Folha</CardTitle>
-                <Users className="h-4 w-4 text-amber-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-amber-600">
-                  {formatCurrency(
-                    despesasCategorizadas
-                      .filter(item => item.categoria !== "outros")
-                      .reduce((sum, item) => sum + item.total, 0)
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Total de custos com pessoal (salários, comissões, bônus e pro-labore)
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Salários</CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(despesasCategorizadas.find(item => item.categoria === "salario")?.total || 0)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Folha de salários
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Comissões</CardTitle>
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(despesasCategorizadas.find(item => item.categoria === "comissao")?.total || 0)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Comissões de vendas
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Bônus e Pro-labore</CardTitle>
-                <Award className="h-4 w-4 text-purple-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-purple-600">
-                  {formatCurrency(
-                    (despesasCategorizadas.find(item => item.categoria === "bonus")?.total || 0) +
-                    (despesasCategorizadas.find(item => item.categoria === "pro-labore")?.total || 0)
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Bônus e pro-labore
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Seção: Folha baseada em despesas de pessoal (aba PAGO) */}
-        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Folha de Pagamento por Categoria</CardTitle>
-              <CardDescription>
-                Análise baseada nas despesas de pessoal pagas, categorizadas por tipo (salários, comissões, bônus e pro-labore)
-              </CardDescription>
+      {/* Cards de Resumo Geral - usando dados das despesas categorizadas */}
+      {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Custo Total da Folha</CardTitle>
+              <Users className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-4 mb-6">
-                {despesasCategorizadas
-                  .filter(item => item.categoria !== "outros") // Ocultar "outros" que geralmente não é despesa de pessoal
-                  .map((item) => {
+              <div className="text-2xl font-bold text-amber-600">
+                {formatCurrency(
+                  despesasCategorizadas
+                    .filter(item => item.categoria !== "outros")
+                    .reduce((sum, item) => sum + item.total, 0)
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Total de custos com pessoal (salários, comissões, bônus e pro-labore)
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Salários</CardTitle>
+              <DollarSign className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {formatCurrency(despesasCategorizadas.find(item => item.categoria === "salario")?.total || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Folha de salários
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Comissões</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(despesasCategorizadas.find(item => item.categoria === "comissao")?.total || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Comissões de vendas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Bônus e Pro-labore</CardTitle>
+              <Award className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                {formatCurrency(
+                  (despesasCategorizadas.find(item => item.categoria === "bonus")?.total || 0) +
+                  (despesasCategorizadas.find(item => item.categoria === "pro-labore")?.total || 0)
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Bônus e pro-labore
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Seção: Folha baseada em despesas de pessoal (aba PAGO) */}
+      {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Folha de Pagamento por Categoria</CardTitle>
+            <CardDescription>
+              Análise baseada nas despesas de pessoal pagas, categorizadas por tipo (salários, comissões, bônus e pro-labore)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4 mb-6">
+              {despesasCategorizadas
+                .filter(item => item.categoria !== "outros") // Ocultar "outros" que geralmente não é despesa de pessoal
+                .map((item) => {
                   const categoriaLabels: Record<string, { label: string; icon: any; color: string }> = {
                     salario: { label: "Salários", icon: DollarSign, color: "text-blue-600" },
                     comissao: { label: "Comissões", icon: TrendingUp, color: "text-green-600" },
                     bonus: { label: "Bônus", icon: Award, color: "text-amber-600" },
                     "pro-labore": { label: "Pro-labore", icon: Briefcase, color: "text-purple-600" },
+                    "distribuicao-lucros": { label: "Distribuição de Lucros", icon: TrendingUp, color: "text-emerald-600" },
                   };
                   const info = categoriaLabels[item.categoria] || { label: item.categoria, icon: Users, color: "text-gray-600" };
                   const Icon = info.icon;
@@ -531,333 +555,334 @@ export default function Folha() {
                           {item.categoria === "comissao" && "Comissões de vendas"}
                           {item.categoria === "bonus" && "Bônus e gratificações"}
                           {item.categoria === "pro-labore" && "Pro-labore"}
+                          {item.categoria === "distribuicao-lucros" && "Distribuição de lucros aos sócios"}
                         </p>
                       </CardContent>
                     </Card>
                   );
                 })}
+            </div>
+
+            {/* Gráfico por mês */}
+            {folhaPorDespesas && folhaPorDespesas.porMes && folhaPorDespesas.porMes.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-4">Evolução Mensal por Categoria</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={folhaPorDespesas.porMes.map(m => ({
+                    mes: `Mês ${m.mes}`,
+                    Salários: m.salario / 100,
+                    Comissões: m.comissao / 100,
+                    Bônus: m.bonus / 100,
+                    "Pro-labore": m.prolabore / 100,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="mes" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
+                    <Legend />
+                    <Bar dataKey="Salários" fill="#3b82f6" />
+                    <Bar dataKey="Comissões" fill="#10b981" />
+                    <Bar dataKey="Bônus" fill="#f59e0b" />
+                    <Bar dataKey="Pro-labore" fill="#8b5cf6" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-              {/* Gráfico por mês */}
-              {folhaPorDespesas && folhaPorDespesas.porMes && folhaPorDespesas.porMes.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-4">Evolução Mensal por Categoria</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={folhaPorDespesas.porMes.map(m => ({
-                      mes: `Mês ${m.mes}`,
-                      Salários: m.salario / 100,
-                      Comissões: m.comissao / 100,
-                      Bônus: m.bonus / 100,
-                      "Pro-labore": m.prolabore / 100,
-                    }))}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="mes" />
-                      <YAxis />
-                      <Tooltip formatter={(value: number) => formatCurrency(value * 100)} />
-                      <Legend />
-                      <Bar dataKey="Salários" fill="#3b82f6" />
-                      <Bar dataKey="Comissões" fill="#10b981" />
-                      <Bar dataKey="Bônus" fill="#f59e0b" />
-                      <Bar dataKey="Pro-labore" fill="#8b5cf6" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+      {/* Tabela descritiva por categoria */}
+      {despesasCategorizadas && despesasCategorizadas.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Detalhamento por Categoria</CardTitle>
+            <CardDescription>
+              Visualize todos os registros detalhados de cada categoria de despesa de pessoal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="salario" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="salario" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Salários
+                </TabsTrigger>
+                <TabsTrigger value="comissao" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Comissões
+                </TabsTrigger>
+                <TabsTrigger value="bonus" className="flex items-center gap-2">
+                  <Award className="h-4 w-4" />
+                  Bônus
+                </TabsTrigger>
+                <TabsTrigger value="prolabore" className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Pro-labore
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Tabela descritiva por categoria */}
-        {despesasCategorizadas && despesasCategorizadas.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Detalhamento por Categoria</CardTitle>
-              <CardDescription>
-                Visualize todos os registros detalhados de cada categoria de despesa de pessoal
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="salario" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="salario" className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    Salários
-                  </TabsTrigger>
-                  <TabsTrigger value="comissao" className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Comissões
-                  </TabsTrigger>
-                  <TabsTrigger value="bonus" className="flex items-center gap-2">
-                    <Award className="h-4 w-4" />
-                    Bônus
-                  </TabsTrigger>
-                  <TabsTrigger value="prolabore" className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4" />
-                    Pro-labore
-                  </TabsTrigger>
-                </TabsList>
+              {/* Tab Salários */}
+              <TabsContent value="salario" className="mt-6">
+                {loadingDetalhesSalario ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={detalhesSalario || []}
+                    columns={[
+                      {
+                        key: "fornecedor",
+                        label: "Fornecedor/Funcionário",
+                        render: (value) => <span className="font-medium">{value || "-"}</span>,
+                      },
+                      {
+                        key: "despesaAnalitico",
+                        label: "Código Analítico",
+                        render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
+                      },
+                      {
+                        key: "descricao",
+                        label: "Descrição",
+                        render: (value) => <span className="text-sm">{value || "-"}</span>,
+                      },
+                      {
+                        key: "historico",
+                        label: "Histórico",
+                        render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                      },
+                      {
+                        key: "codFilial",
+                        label: "Filial",
+                        render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
+                      },
+                      {
+                        key: "dataPagamento",
+                        label: "Data Pagamento",
+                        render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                      },
+                      {
+                        key: "mes",
+                        label: "Mês",
+                        render: (value) => {
+                          const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                          return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
+                        },
+                      },
+                      {
+                        key: "valorPago",
+                        label: "Valor Pago",
+                        render: (value) => (
+                          <span className="font-bold text-blue-600">{formatCurrency(value)}</span>
+                        ),
+                        className: "text-right",
+                      },
+                    ]}
+                    searchable={true}
+                    searchPlaceholder="Buscar por fornecedor, descrição..."
+                    searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                    pageSize={15}
+                    emptyMessage="Nenhum registro de salário encontrado"
+                  />
+                )}
+              </TabsContent>
 
-                {/* Tab Salários */}
-                <TabsContent value="salario" className="mt-6">
-                  {loadingDetalhesSalario ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <DataTable
-                      data={detalhesSalario || []}
-                      columns={[
-                        {
-                          key: "fornecedor",
-                          label: "Fornecedor/Funcionário",
-                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+              {/* Tab Comissões */}
+              <TabsContent value="comissao" className="mt-6">
+                {loadingDetalhesComissao ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={detalhesComissao || []}
+                    columns={[
+                      {
+                        key: "fornecedor",
+                        label: "Fornecedor/Funcionário",
+                        render: (value) => <span className="font-medium">{value || "-"}</span>,
+                      },
+                      {
+                        key: "despesaAnalitico",
+                        label: "Código Analítico",
+                        render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
+                      },
+                      {
+                        key: "descricao",
+                        label: "Descrição",
+                        render: (value) => <span className="text-sm">{value || "-"}</span>,
+                      },
+                      {
+                        key: "historico",
+                        label: "Histórico",
+                        render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                      },
+                      {
+                        key: "codFilial",
+                        label: "Filial",
+                        render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
+                      },
+                      {
+                        key: "dataPagamento",
+                        label: "Data Pagamento",
+                        render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                      },
+                      {
+                        key: "mes",
+                        label: "Mês",
+                        render: (value) => {
+                          const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                          return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
                         },
-                        {
-                          key: "despesaAnalitico",
-                          label: "Código Analítico",
-                          render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
-                        },
-                        {
-                          key: "descricao",
-                          label: "Descrição",
-                          render: (value) => <span className="text-sm">{value || "-"}</span>,
-                        },
-                        {
-                          key: "historico",
-                          label: "Histórico",
-                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
-                        },
-                        {
-                          key: "codFilial",
-                          label: "Filial",
-                          render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
-                        },
-                        {
-                          key: "dataPagamento",
-                          label: "Data Pagamento",
-                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
-                        },
-                        {
-                          key: "mes",
-                          label: "Mês",
-                          render: (value) => {
-                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                            return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
-                          },
-                        },
-                        {
-                          key: "valorPago",
-                          label: "Valor Pago",
-                          render: (value) => (
-                            <span className="font-bold text-blue-600">{formatCurrency(value)}</span>
-                          ),
-                          className: "text-right",
-                        },
-                      ]}
-                      searchable={true}
-                      searchPlaceholder="Buscar por fornecedor, descrição..."
-                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
-                      pageSize={15}
-                      emptyMessage="Nenhum registro de salário encontrado"
-                    />
-                  )}
-                </TabsContent>
+                      },
+                      {
+                        key: "valorPago",
+                        label: "Valor Pago",
+                        render: (value) => (
+                          <span className="font-bold text-green-600">{formatCurrency(value)}</span>
+                        ),
+                        className: "text-right",
+                      },
+                    ]}
+                    searchable={true}
+                    searchPlaceholder="Buscar por fornecedor, descrição..."
+                    searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                    pageSize={15}
+                    emptyMessage="Nenhum registro de comissão encontrado"
+                  />
+                )}
+              </TabsContent>
 
-                {/* Tab Comissões */}
-                <TabsContent value="comissao" className="mt-6">
-                  {loadingDetalhesComissao ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <DataTable
-                      data={detalhesComissao || []}
-                      columns={[
-                        {
-                          key: "fornecedor",
-                          label: "Fornecedor/Funcionário",
-                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+              {/* Tab Bônus */}
+              <TabsContent value="bonus" className="mt-6">
+                {loadingDetalhesBonus ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={detalhesBonus || []}
+                    columns={[
+                      {
+                        key: "fornecedor",
+                        label: "Fornecedor/Funcionário",
+                        render: (value) => <span className="font-medium">{value || "-"}</span>,
+                      },
+                      {
+                        key: "descricao",
+                        label: "Descrição",
+                        render: (value) => value || "-",
+                      },
+                      {
+                        key: "historico",
+                        label: "Histórico",
+                        render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                      },
+                      {
+                        key: "dataPagamento",
+                        label: "Data Pagamento",
+                        render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                      },
+                      {
+                        key: "mes",
+                        label: "Mês",
+                        render: (value) => {
+                          const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                          return value ? meses[value] || value : "-";
                         },
-                        {
-                          key: "despesaAnalitico",
-                          label: "Código Analítico",
-                          render: (value) => value ? <Badge variant="outline">{value}</Badge> : "-",
-                        },
-                        {
-                          key: "descricao",
-                          label: "Descrição",
-                          render: (value) => <span className="text-sm">{value || "-"}</span>,
-                        },
-                        {
-                          key: "historico",
-                          label: "Histórico",
-                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
-                        },
-                        {
-                          key: "codFilial",
-                          label: "Filial",
-                          render: (value) => value ? <Badge variant="secondary">Filial {value}</Badge> : "-",
-                        },
-                        {
-                          key: "dataPagamento",
-                          label: "Data Pagamento",
-                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
-                        },
-                        {
-                          key: "mes",
-                          label: "Mês",
-                          render: (value) => {
-                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                            return value ? <Badge variant="outline">{meses[value] || value}</Badge> : "-";
-                          },
-                        },
-                        {
-                          key: "valorPago",
-                          label: "Valor Pago",
-                          render: (value) => (
-                            <span className="font-bold text-green-600">{formatCurrency(value)}</span>
-                          ),
-                          className: "text-right",
-                        },
-                      ]}
-                      searchable={true}
-                      searchPlaceholder="Buscar por fornecedor, descrição..."
-                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
-                      pageSize={15}
-                      emptyMessage="Nenhum registro de comissão encontrado"
-                    />
-                  )}
-                </TabsContent>
+                      },
+                      {
+                        key: "valorPago",
+                        label: "Valor Pago",
+                        render: (value) => (
+                          <span className="font-bold text-amber-600">{formatCurrency(value)}</span>
+                        ),
+                        className: "text-right",
+                      },
+                    ]}
+                    searchable={true}
+                    searchPlaceholder="Buscar por fornecedor, descrição..."
+                    searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                    pageSize={15}
+                    emptyMessage="Nenhum registro de bônus encontrado"
+                  />
+                )}
+              </TabsContent>
 
-                {/* Tab Bônus */}
-                <TabsContent value="bonus" className="mt-6">
-                  {loadingDetalhesBonus ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <DataTable
-                      data={detalhesBonus || []}
-                      columns={[
-                        {
-                          key: "fornecedor",
-                          label: "Fornecedor/Funcionário",
-                          render: (value) => <span className="font-medium">{value || "-"}</span>,
+              {/* Tab Pro-labore */}
+              <TabsContent value="prolabore" className="mt-6">
+                {loadingDetalhesProlabore ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={detalhesProlabore || []}
+                    columns={[
+                      {
+                        key: "fornecedor",
+                        label: "Fornecedor/Funcionário",
+                        render: (value) => <span className="font-medium">{value || "-"}</span>,
+                      },
+                      {
+                        key: "descricao",
+                        label: "Descrição",
+                        render: (value) => value || "-",
+                      },
+                      {
+                        key: "historico",
+                        label: "Histórico",
+                        render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                      },
+                      {
+                        key: "dataPagamento",
+                        label: "Data Pagamento",
+                        render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                      },
+                      {
+                        key: "mes",
+                        label: "Mês",
+                        render: (value) => {
+                          const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                          return value ? meses[value] || value : "-";
                         },
-                        {
-                          key: "descricao",
-                          label: "Descrição",
-                          render: (value) => value || "-",
-                        },
-                        {
-                          key: "historico",
-                          label: "Histórico",
-                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
-                        },
-                        {
-                          key: "dataPagamento",
-                          label: "Data Pagamento",
-                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
-                        },
-                        {
-                          key: "mes",
-                          label: "Mês",
-                          render: (value) => {
-                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                            return value ? meses[value] || value : "-";
-                          },
-                        },
-                        {
-                          key: "valorPago",
-                          label: "Valor Pago",
-                          render: (value) => (
-                            <span className="font-bold text-amber-600">{formatCurrency(value)}</span>
-                          ),
-                          className: "text-right",
-                        },
-                      ]}
-                      searchable={true}
-                      searchPlaceholder="Buscar por fornecedor, descrição..."
-                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
-                      pageSize={15}
-                      emptyMessage="Nenhum registro de bônus encontrado"
-                    />
-                  )}
-                </TabsContent>
+                      },
+                      {
+                        key: "valorPago",
+                        label: "Valor Pago",
+                        render: (value) => (
+                          <span className="font-bold text-purple-600">{formatCurrency(value)}</span>
+                        ),
+                        className: "text-right",
+                      },
+                    ]}
+                    searchable={true}
+                    searchPlaceholder="Buscar por fornecedor, descrição..."
+                    searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
+                    pageSize={15}
+                    emptyMessage="Nenhum registro de pro-labore encontrado"
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
 
-                {/* Tab Pro-labore */}
-                <TabsContent value="prolabore" className="mt-6">
-                  {loadingDetalhesProlabore ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : (
-                    <DataTable
-                      data={detalhesProlabore || []}
-                      columns={[
-                        {
-                          key: "fornecedor",
-                          label: "Fornecedor/Funcionário",
-                          render: (value) => <span className="font-medium">{value || "-"}</span>,
-                        },
-                        {
-                          key: "descricao",
-                          label: "Descrição",
-                          render: (value) => value || "-",
-                        },
-                        {
-                          key: "historico",
-                          label: "Histórico",
-                          render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
-                        },
-                        {
-                          key: "dataPagamento",
-                          label: "Data Pagamento",
-                          render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
-                        },
-                        {
-                          key: "mes",
-                          label: "Mês",
-                          render: (value) => {
-                            const meses = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                            return value ? meses[value] || value : "-";
-                          },
-                        },
-                        {
-                          key: "valorPago",
-                          label: "Valor Pago",
-                          render: (value) => (
-                            <span className="font-bold text-purple-600">{formatCurrency(value)}</span>
-                          ),
-                          className: "text-right",
-                        },
-                      ]}
-                      searchable={true}
-                      searchPlaceholder="Buscar por fornecedor, descrição..."
-                      searchKeys={["fornecedor", "descricao", "historico", "despesaAnalitico"]}
-                      pageSize={15}
-                      emptyMessage="Nenhum registro de pro-labore encontrado"
-                    />
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Tabs para CLT e PJ - só mostrar se houver dados */}
-        {(totaisCLT.total > 0 || totaisPJ.total > 0) && (
-          <Tabs defaultValue="clt" className="mb-8">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="clt" className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4" />
-                CLT ({totaisCLT.funcionarios})
-              </TabsTrigger>
-              <TabsTrigger value="pj" className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4" />
-                PJ ({totaisPJ.funcionarios})
-              </TabsTrigger>
-            </TabsList>
+      {/* Tabs para CLT e PJ - só mostrar se houver dados */}
+      {(totaisCLT.total > 0 || totaisPJ.total > 0) && (
+        <Tabs defaultValue="clt" className="mb-8">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="clt" className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4" />
+              CLT ({totaisCLT.funcionarios})
+            </TabsTrigger>
+            <TabsTrigger value="pj" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              PJ ({totaisPJ.funcionarios})
+            </TabsTrigger>
+          </TabsList>
 
           {/* Aba CLT */}
           <TabsContent value="clt" className="space-y-6">
@@ -960,37 +985,37 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosSalario.custoPorArea} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                            <XAxis 
-                              dataKey="name" 
-                              angle={-45} 
-                              textAnchor="end" 
-                              height={100} 
+                            <XAxis
+                              dataKey="name"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
                               tick={{ fontSize: 11, fill: "#9ca3af" }}
                               stroke="#6b7280"
                             />
-                            <YAxis 
+                            <YAxis
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                               tick={{ fill: "#9ca3af" }}
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
-                              contentStyle={{ 
-                                backgroundColor: "#fff", 
-                                border: "1px solid #e5e7eb", 
+                              contentStyle={{
+                                backgroundColor: "#fff",
+                                border: "1px solid #e5e7eb",
                                 borderRadius: "6px",
                                 color: "#1f2937",
                                 fontWeight: 500
                               }}
                             />
-                            <Bar 
-                              dataKey="value" 
+                            <Bar
+                              dataKey="value"
                               fill="#2563eb"
                               radius={[4, 4, 0, 0]}
                             >
-                              <LabelList 
-                                dataKey="value" 
+                              <LabelList
+                                dataKey="value"
                                 position="top"
                                 formatter={(value: number) => {
                                   if (value === 0) return "";
@@ -1022,25 +1047,25 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosSalario.topFuncionarios} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis 
-                              type="number" 
+                            <XAxis
+                              type="number"
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                             />
-                            <YAxis 
-                              type="category" 
-                              dataKey="name" 
-                              width={120} 
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={120}
                               tick={{ fontSize: 11 }}
                               stroke="#6b7280"
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
                               contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
                             />
-                            <Bar 
-                              dataKey="valor" 
+                            <Bar
+                              dataKey="valor"
                               fill="#2563eb"
                               radius={[0, 4, 4, 0]}
                             />
@@ -1069,94 +1094,94 @@ export default function Folha() {
                     ) : (
                       <DataTable
                         data={folhaSalario}
-                    columns={[
-                      {
-                        key: "nome",
-                        label: "Nome",
-                        render: (value) => <span className="font-medium">{value || "-"}</span>,
-                      },
-                      {
-                        key: "area",
-                        label: "Área",
-                        render: (value) => value || "-",
-                      },
-                      {
-                        key: "tipoPagamento",
-                        label: "Tipo",
-                        render: (value) => (
-                          <Badge variant="outline" className="text-xs">
-                            {value || "-"}
-                          </Badge>
-                        ),
-                      },
-                      {
-                        key: "mes1",
-                        label: "Mês 1",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes2",
-                        label: "Mês 2",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes3",
-                        label: "Mês 3",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes4",
-                        label: "Mês 4",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes5",
-                        label: "Mês 5",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes6",
-                        label: "Mês 6",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes7",
-                        label: "Mês 7",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "mes8",
-                        label: "Mês 8",
-                        render: (value) => formatCurrency(value),
-                        className: "text-right text-xs",
-                      },
-                      {
-                        key: "total",
-                        label: "Total",
-                        render: (value) => (
-                          <span className="font-bold text-blue-600">
-                            {formatCurrency(value)}
-                          </span>
-                        ),
-                        className: "text-right font-bold",
-                      },
-                    ]}
-                    searchable={true}
-                    searchPlaceholder="Buscar por nome, área..."
-                    searchKeys={["nome", "area", "tipoPagamento"]}
-                    pageSize={15}
-                    emptyMessage="Nenhum dado de salários encontrado"
-                  />
-                )}
-              </CardContent>
-            </Card>
+                        columns={[
+                          {
+                            key: "nome",
+                            label: "Nome",
+                            render: (value) => <span className="font-medium">{value || "-"}</span>,
+                          },
+                          {
+                            key: "area",
+                            label: "Área",
+                            render: (value) => value || "-",
+                          },
+                          {
+                            key: "tipoPagamento",
+                            label: "Tipo",
+                            render: (value) => (
+                              <Badge variant="outline" className="text-xs">
+                                {value || "-"}
+                              </Badge>
+                            ),
+                          },
+                          {
+                            key: "mes1",
+                            label: "Mês 1",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes2",
+                            label: "Mês 2",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes3",
+                            label: "Mês 3",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes4",
+                            label: "Mês 4",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes5",
+                            label: "Mês 5",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes6",
+                            label: "Mês 6",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes7",
+                            label: "Mês 7",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "mes8",
+                            label: "Mês 8",
+                            render: (value) => formatCurrency(value),
+                            className: "text-right text-xs",
+                          },
+                          {
+                            key: "total",
+                            label: "Total",
+                            render: (value) => (
+                              <span className="font-bold text-blue-600">
+                                {formatCurrency(value)}
+                              </span>
+                            ),
+                            className: "text-right font-bold",
+                          },
+                        ]}
+                        searchable={true}
+                        searchPlaceholder="Buscar por nome, área..."
+                        searchKeys={["nome", "area", "tipoPagamento"]}
+                        pageSize={15}
+                        emptyMessage="Nenhum dado de salários encontrado"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* Aba Premiações */}
@@ -1174,37 +1199,37 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosPremiacao.custoPorArea} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                            <XAxis 
-                              dataKey="name" 
-                              angle={-45} 
-                              textAnchor="end" 
-                              height={100} 
+                            <XAxis
+                              dataKey="name"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
                               tick={{ fontSize: 11, fill: "#9ca3af" }}
                               stroke="#6b7280"
                             />
-                            <YAxis 
+                            <YAxis
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                               tick={{ fill: "#9ca3af" }}
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
-                              contentStyle={{ 
-                                backgroundColor: "#fff", 
-                                border: "1px solid #e5e7eb", 
+                              contentStyle={{
+                                backgroundColor: "#fff",
+                                border: "1px solid #e5e7eb",
                                 borderRadius: "6px",
                                 color: "#1f2937",
                                 fontWeight: 500
                               }}
                             />
-                            <Bar 
-                              dataKey="value" 
+                            <Bar
+                              dataKey="value"
                               fill="#f59e0b"
                               radius={[4, 4, 0, 0]}
                             >
-                              <LabelList 
-                                dataKey="value" 
+                              <LabelList
+                                dataKey="value"
                                 position="top"
                                 formatter={(value: number) => {
                                   if (value === 0) return "";
@@ -1236,25 +1261,25 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosPremiacao.topFuncionarios} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis 
-                              type="number" 
+                            <XAxis
+                              type="number"
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                             />
-                            <YAxis 
-                              type="category" 
-                              dataKey="name" 
-                              width={120} 
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={120}
                               tick={{ fontSize: 11 }}
                               stroke="#6b7280"
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
                               contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
                             />
-                            <Bar 
-                              dataKey="valor" 
+                            <Bar
+                              dataKey="valor"
                               fill="#f59e0b"
                               radius={[0, 4, 4, 0]}
                             />
@@ -1388,37 +1413,37 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosComissao.custoPorArea} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                            <XAxis 
-                              dataKey="name" 
-                              angle={-45} 
-                              textAnchor="end" 
-                              height={100} 
+                            <XAxis
+                              dataKey="name"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
                               tick={{ fontSize: 11, fill: "#9ca3af" }}
                               stroke="#6b7280"
                             />
-                            <YAxis 
+                            <YAxis
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                               tick={{ fill: "#9ca3af" }}
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
-                              contentStyle={{ 
-                                backgroundColor: "#fff", 
-                                border: "1px solid #e5e7eb", 
+                              contentStyle={{
+                                backgroundColor: "#fff",
+                                border: "1px solid #e5e7eb",
                                 borderRadius: "6px",
                                 color: "#1f2937",
                                 fontWeight: 500
                               }}
                             />
-                            <Bar 
-                              dataKey="value" 
+                            <Bar
+                              dataKey="value"
                               fill="#10b981"
                               radius={[4, 4, 0, 0]}
                             >
-                              <LabelList 
-                                dataKey="value" 
+                              <LabelList
+                                dataKey="value"
                                 position="top"
                                 formatter={(value: number) => {
                                   if (value === 0) return "";
@@ -1450,25 +1475,25 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosComissao.topFuncionarios} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis 
-                              type="number" 
+                            <XAxis
+                              type="number"
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                             />
-                            <YAxis 
-                              type="category" 
-                              dataKey="name" 
-                              width={120} 
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={120}
                               tick={{ fontSize: 11 }}
                               stroke="#6b7280"
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
                               contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
                             />
-                            <Bar 
-                              dataKey="valor" 
+                            <Bar
+                              dataKey="valor"
                               fill="#10b981"
                               radius={[0, 4, 4, 0]}
                             />
@@ -1602,37 +1627,37 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosOutros.custoPorArea} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                            <XAxis 
-                              dataKey="name" 
-                              angle={-45} 
-                              textAnchor="end" 
-                              height={100} 
+                            <XAxis
+                              dataKey="name"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
                               tick={{ fontSize: 11, fill: "#9ca3af" }}
                               stroke="#6b7280"
                             />
-                            <YAxis 
+                            <YAxis
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                               tick={{ fill: "#9ca3af" }}
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
-                              contentStyle={{ 
-                                backgroundColor: "#fff", 
-                                border: "1px solid #e5e7eb", 
+                              contentStyle={{
+                                backgroundColor: "#fff",
+                                border: "1px solid #e5e7eb",
                                 borderRadius: "6px",
                                 color: "#1f2937",
                                 fontWeight: 500
                               }}
                             />
-                            <Bar 
-                              dataKey="value" 
+                            <Bar
+                              dataKey="value"
                               fill="#6b7280"
                               radius={[4, 4, 0, 0]}
                             >
-                              <LabelList 
-                                dataKey="value" 
+                              <LabelList
+                                dataKey="value"
                                 position="top"
                                 formatter={(value: number) => {
                                   if (value === 0) return "";
@@ -1664,25 +1689,25 @@ export default function Folha() {
                         <ResponsiveContainer width="100%" height={350}>
                           <BarChart data={graficosOutros.topFuncionarios} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis 
-                              type="number" 
+                            <XAxis
+                              type="number"
                               tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                               stroke="#6b7280"
                               fontSize={11}
                             />
-                            <YAxis 
-                              type="category" 
-                              dataKey="name" 
-                              width={120} 
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={120}
                               tick={{ fontSize: 11 }}
                               stroke="#6b7280"
                             />
-                            <Tooltip 
+                            <Tooltip
                               formatter={(value: number) => formatCurrency(value * 100)}
                               contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
                             />
-                            <Bar 
-                              dataKey="valor" 
+                            <Bar
+                              dataKey="valor"
                               fill="#6b7280"
                               radius={[0, 4, 4, 0]}
                             />
@@ -1818,37 +1843,37 @@ export default function Folha() {
                     <ResponsiveContainer width="100%" height={350}>
                       <BarChart data={custoPorAreaPJ} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                        <XAxis 
-                          dataKey="name" 
-                          angle={-45} 
-                          textAnchor="end" 
-                          height={100} 
+                        <XAxis
+                          dataKey="name"
+                          angle={-45}
+                          textAnchor="end"
+                          height={100}
                           tick={{ fontSize: 11, fill: "#9ca3af" }}
                           stroke="#6b7280"
                         />
-                        <YAxis 
+                        <YAxis
                           tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                           stroke="#6b7280"
                           fontSize={11}
                           tick={{ fill: "#9ca3af" }}
                         />
-                        <Tooltip 
+                        <Tooltip
                           formatter={(value: number) => formatCurrency(value * 100)}
-                          contentStyle={{ 
-                            backgroundColor: "#fff", 
-                            border: "1px solid #e5e7eb", 
+                          contentStyle={{
+                            backgroundColor: "#fff",
+                            border: "1px solid #e5e7eb",
                             borderRadius: "6px",
                             color: "#1f2937",
                             fontWeight: 500
                           }}
                         />
-                        <Bar 
-                          dataKey="value" 
+                        <Bar
+                          dataKey="value"
                           fill="#8b5cf6"
                           radius={[4, 4, 0, 0]}
                         >
-                          <LabelList 
-                            dataKey="value" 
+                          <LabelList
+                            dataKey="value"
                             position="top"
                             formatter={(value: number) => {
                               if (value === 0) return "";
@@ -1880,25 +1905,25 @@ export default function Folha() {
                     <ResponsiveContainer width="100%" height={350}>
                       <BarChart data={topFuncionariosPJ} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis 
-                          type="number" 
+                        <XAxis
+                          type="number"
                           tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                           stroke="#6b7280"
                           fontSize={11}
                         />
-                        <YAxis 
-                          type="category" 
-                          dataKey="name" 
-                          width={120} 
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={120}
                           tick={{ fontSize: 11 }}
                           stroke="#6b7280"
                         />
-                        <Tooltip 
+                        <Tooltip
                           formatter={(value: number) => formatCurrency(value * 100)}
                           contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
                         />
-                        <Bar 
-                          dataKey="valor" 
+                        <Bar
+                          dataKey="valor"
                           fill="#8b5cf6"
                           radius={[0, 4, 4, 0]}
                         />
@@ -2016,8 +2041,8 @@ export default function Folha() {
               </CardContent>
             </Card>
           </TabsContent>
-          </Tabs>
-        )}
-      </div>
+        </Tabs>
+      )}
+    </div>
   );
 }

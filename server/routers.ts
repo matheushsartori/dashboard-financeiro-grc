@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { ParsedExcelData } from "./excel-parser";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   // Financial data routers
   financial: router({
@@ -38,7 +38,7 @@ export const appRouter = router({
 
         try {
           console.log(`[Upload ${uploadId}] Iniciando processamento...`);
-          
+
           // Decodificar base64
           const buffer = Buffer.from(input.fileData, "base64");
           console.log(`[Upload ${uploadId}] Arquivo decodificado: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
@@ -57,27 +57,27 @@ export const appRouter = router({
           console.log(`[Upload ${uploadId}] Inserindo dados no banco...`);
           await upsertPlanoContas(parsedData.planoContas);
           console.log(`[Upload ${uploadId}] Plano de contas inserido`);
-          
+
           await upsertCentrosCusto(parsedData.centrosCusto);
           console.log(`[Upload ${uploadId}] Centros de custo inseridos`);
-          
+
           await upsertFornecedores(parsedData.fornecedores);
           console.log(`[Upload ${uploadId}] Fornecedores inseridos`);
-          
+
           await insertContasAPagar(parsedData.contasAPagar);
           console.log(`[Upload ${uploadId}] Contas a pagar inseridas`);
-          
+
           await insertContasAReceber(parsedData.contasAReceber);
           console.log(`[Upload ${uploadId}] Contas a receber inseridas`);
-          
+
           // Identificar e cadastrar filiais automaticamente
           const { upsertFiliaisFromData } = await import("./db-financial");
           await upsertFiliaisFromData(parsedData.contasAPagar, parsedData.contasAReceber);
           console.log(`[Upload ${uploadId}] Filiais identificadas e cadastradas`);
-          
+
           await insertFolhaPagamento(parsedData.folhaPagamento);
           console.log(`[Upload ${uploadId}] Folha de pagamento inserida`);
-          
+
           await insertSaldosBancarios(parsedData.saldosBancarios);
           console.log(`[Upload ${uploadId}] Saldos bancários inseridos`);
 
@@ -109,9 +109,25 @@ export const appRouter = router({
       return clearAllFinancialData();
     }),
 
+    // Excluir uma importação específica
+    deleteUpload: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteUpload } = await import("./db-financial");
+        return deleteUpload(input.uploadId);
+      }),
+
+    // Baixar planilha original de uma importação
+    downloadUpload: protectedProcedure
+      .input(z.object({ uploadId: z.number() }))
+      .query(async ({ input }) => {
+        const { getUploadFile } = await import("./db-financial");
+        return getUploadFile(input.uploadId);
+      }),
+
     // Obter resumo do dashboard
     getDashboardSummary: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
         codFilial: z.array(z.number()).optional().nullable()
@@ -123,8 +139,8 @@ export const appRouter = router({
 
     // Obter resumo do DRE
     getDRESummary: protectedProcedure
-      .input(z.object({ 
-        uploadId: z.number(), 
+      .input(z.object({
+        uploadId: z.number(),
         mes: z.number().optional().nullable(),
         tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
         codFilial: z.array(z.number()).optional().nullable()
@@ -136,7 +152,7 @@ export const appRouter = router({
 
     // Obter DRE de todos os meses (para tabela horizontal)
     getDREPorMeses: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -147,7 +163,7 @@ export const appRouter = router({
 
     // Obter dados mensais
     getDadosMensais: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -158,7 +174,7 @@ export const appRouter = router({
 
     // Obter contas a pagar
     getContasAPagar: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -169,7 +185,7 @@ export const appRouter = router({
 
     // Obter resumo de contas a pagar
     getContasAPagarSummary: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
         codFilial: z.array(z.number()).optional().nullable()
@@ -179,7 +195,7 @@ export const appRouter = router({
         const [summary, topFornecedores, despesasCategoria, despesasCentroCusto] = await Promise.all([
           getContasAPagarSummary(input.uploadId, input.tipoVisualizacao, input.codFilial ?? null),
           getTopFornecedores(input.uploadId, 10, input.codFilial ?? null),
-          getDespesasPorCategoria(input.uploadId),
+          getDespesasPorCategoria(input.uploadId, input.codFilial ?? null),
           getDespesasPorCentroCusto(input.uploadId, input.codFilial ?? null),
         ]);
         return { summary, topFornecedores, despesasCategoria, despesasCentroCusto };
@@ -187,8 +203,8 @@ export const appRouter = router({
 
     // Obter despesas por fornecedor
     getDespesasPorFornecedor: protectedProcedure
-      .input(z.object({ 
-        uploadId: z.number(), 
+      .input(z.object({
+        uploadId: z.number(),
         mes: z.number().optional().nullable(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -207,8 +223,8 @@ export const appRouter = router({
 
     // Obter contas a receber
     getContasAReceber: protectedProcedure
-      .input(z.object({ 
-        uploadId: z.number(), 
+      .input(z.object({
+        uploadId: z.number(),
         mes: z.number().optional().nullable(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -219,8 +235,8 @@ export const appRouter = router({
 
     // Obter resumo de contas a receber
     getContasAReceberSummary: protectedProcedure
-      .input(z.object({ 
-        uploadId: z.number(), 
+      .input(z.object({
+        uploadId: z.number(),
         mes: z.number().optional().nullable(),
         tipoVisualizacao: z.enum(["realizado", "projetado", "todos"]).optional().default("realizado"),
         codFilial: z.array(z.number()).optional().nullable()
@@ -237,7 +253,7 @@ export const appRouter = router({
 
     // Obter receitas mensais (evolução)
     getReceitasMensais: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -246,9 +262,20 @@ export const appRouter = router({
         return getReceitasMensais(input.uploadId, input.codFilial ?? null);
       }),
 
+    // Obter receitas por filial (comparação entre filiais)
+    getReceitasPorFilial: protectedProcedure
+      .input(z.object({
+        uploadId: z.number(),
+        mes: z.number().optional().nullable()
+      }))
+      .query(async ({ input }) => {
+        const { getReceitasPorFilial } = await import("./db-financial");
+        return getReceitasPorFilial(input.uploadId, input.mes ?? null);
+      }),
+
     // Obter despesas mensais (evolução)
     getDespesasMensais: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -259,8 +286,8 @@ export const appRouter = router({
 
     // Obter receitas por empresa
     getReceitasPorEmpresa: protectedProcedure
-      .input(z.object({ 
-        uploadId: z.number(), 
+      .input(z.object({
+        uploadId: z.number(),
         mes: z.number().optional().nullable(),
         codFilial: z.array(z.number()).optional().nullable()
       }))
@@ -302,7 +329,7 @@ export const appRouter = router({
       .input(z.object({ uploadId: z.number() }))
       .query(async ({ input }) => {
         const { getFolhaPagamentoTotalByType } = await import("./db-financial");
-        
+
         // Os tipos de pagamento foram identificados na planilha CONSULTA FOLHA
         // Para comissão, usar 'COMISSÃO' genérico pois a função agora busca por variações
         const totalSalario = await getFolhaPagamentoTotalByType(input.uploadId, 'SALÁRIO');
@@ -327,7 +354,7 @@ export const appRouter = router({
 
     // Obter despesas de pessoal categorizadas (salários, comissões, bônus, pro-labore)
     getDespesasPessoalCategorizadas: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).nullable().optional(),
         mes: z.number().nullable().optional(),
@@ -340,7 +367,7 @@ export const appRouter = router({
 
     // Obter despesas de pessoal detalhadas por categoria
     getDespesasPessoalDetalhadas: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
         codFilial: z.array(z.number()).nullable().optional(),
@@ -353,7 +380,7 @@ export const appRouter = router({
 
     // Obter folha de pagamento baseada em despesas de pessoal (da aba PAGO)
     getFolhaPagamentoPorDespesas: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         codFilial: z.array(z.number()).nullable().optional(),
         mes: z.number().nullable().optional(),
@@ -365,7 +392,7 @@ export const appRouter = router({
 
     // Obter detalhes de folha de pagamento por categoria
     getFolhaPagamentoDetalhada: protectedProcedure
-      .input(z.object({ 
+      .input(z.object({
         uploadId: z.number(),
         categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
         codFilial: z.array(z.number()).nullable().optional(),

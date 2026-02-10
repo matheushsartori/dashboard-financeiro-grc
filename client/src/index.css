@@ -53,21 +53,23 @@
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
+  /* Background cinza suave em vez de branco puro */
+  --background: oklch(0.97 0.002 264);
   --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
+  /* Cards brancos com leve toque de azul */
+  --card: oklch(0.995 0.001 264);
   --card-foreground: oklch(0.235 0.015 65);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
+  --secondary: oklch(0.96 0.002 264);
   --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
+  --muted: oklch(0.955 0.002 264);
   --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
+  --accent: oklch(0.955 0.002 264);
   --accent-foreground: oklch(0.141 0.005 285.823);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
+  --border: oklch(0.90 0.004 264);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.623 0.214 259.815);
   --sidebar: oklch(0.985 0 0);
@@ -174,4 +176,20 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+}
+/* Cards premium com sombras e bordas */
+[class*='Card'] {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 0 0 1px rgb(0 0 0 / 0.02);
+  transition: box-shadow 0.2s ease;
+}
+
+[class*='Card']:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.04), 0 0 0 1px rgb(0 0 0 / 0.02);
+}
+
+/* Main content area com padrão sutil */
+main {
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgb(59 130 246 / 0.02) 0%, transparent 50%),
+    radial-gradient(circle at 90% 80%, rgb(168 85 247 / 0.02) 0%, transparent 50%);
 }

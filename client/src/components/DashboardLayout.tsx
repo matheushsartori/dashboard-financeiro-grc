@@ -28,14 +28,69 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import { FilialFilter, TipoEscopoFilial } from "./FilialFilter";
 import { trpc } from "@/lib/trpc";
+import { ThemeToggle } from "./ThemeToggle";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: TrendingUp, label: "Receitas", path: "/receitas" },
-  { icon: TrendingDown, label: "Despesas", path: "/despesas" },
-  { icon: FileText, label: "DRE", path: "/dre" },
-  { icon: Wallet, label: "Folha de Pagamento", path: "/folha" },
-  { icon: Upload, label: "Importação", path: "/importacao" },
+  {
+    icon: LayoutDashboard,
+    label: "Dashboard",
+    description: "Visão geral e métricas principais",
+    path: "/dashboard",
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10",
+    hoverColor: "hover:bg-blue-500/20",
+    activeColor: "bg-gradient-to-r from-blue-500/20 to-blue-600/20 border-l-4 border-blue-500"
+  },
+  {
+    icon: TrendingUp,
+    label: "Receitas",
+    description: "Análise de receitas e faturamento",
+    path: "/receitas",
+    color: "text-green-500",
+    bgColor: "bg-green-500/10",
+    hoverColor: "hover:bg-green-500/20",
+    activeColor: "bg-gradient-to-r from-green-500/20 to-green-600/20 border-l-4 border-green-500"
+  },
+  {
+    icon: TrendingDown,
+    label: "Despesas",
+    description: "Controle de despesas e custos",
+    path: "/despesas",
+    color: "text-red-500",
+    bgColor: "bg-red-500/10",
+    hoverColor: "hover:bg-red-500/20",
+    activeColor: "bg-gradient-to-r from-red-500/20 to-red-600/20 border-l-4 border-red-500"
+  },
+  {
+    icon: FileText,
+    label: "DRE",
+    description: "Demonstração do Resultado do Exercício",
+    path: "/dre",
+    color: "text-purple-500",
+    bgColor: "bg-purple-500/10",
+    hoverColor: "hover:bg-purple-500/20",
+    activeColor: "bg-gradient-to-r from-purple-500/20 to-purple-600/20 border-l-4 border-purple-500"
+  },
+  {
+    icon: Wallet,
+    label: "Folha de Pagamento",
+    description: "Gestão de salários e benefícios",
+    path: "/folha",
+    color: "text-amber-500",
+    bgColor: "bg-amber-500/10",
+    hoverColor: "hover:bg-amber-500/20",
+    activeColor: "bg-gradient-to-r from-amber-500/20 to-amber-600/20 border-l-4 border-amber-500"
+  },
+  {
+    icon: Upload,
+    label: "Importação",
+    description: "Upload e gerenciamento de dados",
+    path: "/importacao",
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10",
+    hoverColor: "hover:bg-cyan-500/20",
+    activeColor: "bg-gradient-to-r from-cyan-500/20 to-cyan-600/20 border-l-4 border-cyan-500"
+  },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -189,26 +244,36 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
-          className="border-r-0"
+          className="border-r-0 bg-gradient-to-b from-slate-50 via-slate-50/95 to-slate-100/90 dark:from-slate-950 dark:via-slate-900/95 dark:to-slate-950/90"
           disableTransition={isResizing}
+          style={{
+            backgroundImage: `
+              radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.03) 0%, transparent 50%),
+              radial-gradient(circle at 40% 20%, rgba(34, 197, 94, 0.02) 0%, transparent 50%)
+            `
+          }}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-16 justify-center border-b bg-gradient-to-r from-primary/5 to-primary/10">
             <div className="flex items-center gap-3 pl-2 group-data-[collapsible=icon]:px-0 transition-all w-full">
               {!isCollapsed ? (
                 <>
                   <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={APP_LOGO}
-                      className="h-8 w-8 rounded-md object-cover ring-1 ring-border shrink-0"
-                      alt="Logo"
-                    />
-                    <span className="font-semibold tracking-tight truncate">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/40 rounded-lg blur-sm" />
+                      <img
+                        src={APP_LOGO}
+                        className="relative h-9 w-9 rounded-lg object-cover ring-2 ring-primary/20 shrink-0"
+                        alt="Logo"
+                      />
+                    </div>
+                    <span className="font-bold text-lg bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent tracking-tight truncate">
                       {APP_TITLE}
                     </span>
                   </div>
                   <button
                     onClick={toggleSidebar}
-                    className="ml-auto h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                    className="ml-auto h-8 w-8 flex items-center justify-center hover:bg-primary/10 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0"
                   >
                     <PanelLeft className="h-4 w-4 text-muted-foreground" />
                   </button>
@@ -216,7 +281,7 @@ function DashboardLayoutContent({
               ) : (
                 <button
                   onClick={toggleSidebar}
-                  className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                  className="h-8 w-8 flex items-center justify-center hover:bg-primary/10 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0"
                 >
                   <PanelLeft className="h-4 w-4 text-muted-foreground" />
                 </button>
@@ -225,39 +290,61 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+            <SidebarMenu className="px-2 py-1 space-y-1">
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
+                    <button
                       onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
+                        transition-all duration-200 font-medium text-sm
+                        ${isActive
+                          ? `${item.activeColor} text-foreground shadow-sm`
+                          : `${item.hoverColor} text-muted-foreground hover:text-foreground`
+                        }
+                        group-data-[collapsible=icon]:justify-center
+                        group-data-[collapsible=icon]:px-2
+                      `}
+                      title={`${item.label} - ${item.description}`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        className={`h-5 w-5 shrink-0 transition-colors ${isActive ? item.color : 'text-muted-foreground group-hover:' + item.color
+                          }`}
                       />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
+                      <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                        <div className="truncate font-medium">
+                          {item.label}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                          {item.description}
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="ml-auto h-2 w-2 rounded-full bg-current opacity-70 group-data-[collapsible=icon]:hidden" />
+                      )}
+                    </button>
                   </SidebarMenuItem>
                 );
               })}
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="p-3 border-t bg-gradient-to-r from-primary/5 to-transparent">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                <button className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-primary/10 transition-all duration-200 w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/30 to-primary/10 rounded-full blur-sm" />
+                    <Avatar className="relative h-9 w-9 border-2 border-primary/20 shrink-0 ring-2 ring-primary/10">
+                      <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary/20 to-primary/10">
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
+                    <p className="text-sm font-semibold truncate leading-none">
                       {user?.name || "-"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
@@ -301,18 +388,19 @@ function DashboardLayoutContent({
               </span>
             </div>
           </div>
-          
-          {/* Seletor de Filial no Header */}
-          {latestUpload && (
-            <div className="flex items-center gap-2">
-              <FilialFilter 
-                value={escopoFilial} 
-                onChange={handleFilialChange} 
+
+          {/* Seletor de Filial e Theme Toggle no Header */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {latestUpload && (
+              <FilialFilter
+                value={escopoFilial}
+                onChange={handleFilialChange}
                 uploadId={latestUpload}
                 label="Escopo"
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>

@@ -29,7 +29,7 @@ export default function Despesas() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  
+
   // Buscar filial selecionada do localStorage
   const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
     const saved = localStorage.getItem("selectedFilial");
@@ -53,8 +53,8 @@ export default function Despesas() {
   const utils = trpc.useUtils();
 
   // Converter escopo de filial para array de códigos
-  const codFilialFilter = useMemo(() => 
-    getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
+  const codFilialFilter = useMemo(() =>
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis),
     [escopoFilial, filiaisDisponiveis]
   );
 
@@ -74,7 +74,7 @@ export default function Despesas() {
 
     window.addEventListener("filialChanged", handleFilialChanged);
     window.addEventListener("storage", handleFilialChanged);
-    
+
     return () => {
       window.removeEventListener("filialChanged", handleFilialChanged);
       window.removeEventListener("storage", handleFilialChanged);
@@ -96,7 +96,7 @@ export default function Despesas() {
   // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAPagarSummary.useQuery(
     { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
     }
@@ -105,7 +105,7 @@ export default function Despesas() {
   // Carregar despesas detalhadas em paralelo
   const { data: despesas, isLoading: loadingDespesas } = trpc.financial.getContasAPagar.useQuery(
     { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { 
+    {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
     }
@@ -114,7 +114,7 @@ export default function Despesas() {
   // Buscar despesas por fornecedor - carregar após summary estar pronto
   const { data: despesasPorFornecedor, isLoading: loadingDespesasPorFornecedor } = trpc.financial.getDespesasPorFornecedor.useQuery(
     { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
-    { 
+    {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
     }
@@ -123,7 +123,7 @@ export default function Despesas() {
   // Buscar despesas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: despesasMensais, isLoading: loadingDespesasMensais } = trpc.financial.getDespesasMensais.useQuery(
     { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { 
+    {
       enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
       staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
     }
@@ -142,10 +142,10 @@ export default function Despesas() {
   // Calcular totais filtrados
   const filteredSummary = useMemo(() => {
     if (!filteredDespesas.length) return { totalValor: 0, totalPago: 0, totalRegistros: 0 };
-    
+
     const totalValor = filteredDespesas.reduce((sum, d) => sum + (d.valor || 0), 0);
     const totalPago = filteredDespesas.reduce((sum, d) => sum + (d.valorPago || 0), 0);
-    
+
     return {
       totalValor,
       totalPago,
@@ -201,494 +201,503 @@ export default function Despesas() {
 
   return (
     <div className="container max-w-7xl py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Despesas</h1>
-            <p className="text-muted-foreground">
-              Análise detalhada de contas a pagar
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
-            <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
-          </div>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Despesas</h1>
+          <p className="text-muted-foreground">
+            Análise detalhada de contas a pagar
+          </p>
         </div>
+        <div className="flex items-center gap-4">
+          <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
+          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+        </div>
+      </div>
 
-        {selectedMonth && (
-          <div className="mb-4">
-            <Badge variant="outline" className="text-sm">
-              Visualizando dados do mês {selectedMonth}
-            </Badge>
-          </div>
+      {selectedMonth && (
+        <div className="mb-4">
+          <Badge variant="outline" className="text-sm">
+            Visualizando dados do mês {selectedMonth}
+          </Badge>
+        </div>
+      )}
+
+      {/* Cards de Resumo */}
+      <div className="grid gap-4 md:grid-cols-4 mb-8">
+        {loadingSummary ? (
+          <>
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-32 mb-2" />
+                  <Skeleton className="h-3 w-40" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
+                <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(selectedMonth ? filteredSummary.totalValor : totalValor)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Valor original {selectedMonth ? "do mês" : "geral"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(selectedMonth ? filteredSummary.totalPago : totalPago)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Valor efetivamente pago {selectedMonth ? "do mês" : "geral"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Taxa de Pagamento</CardTitle>
+                <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {(() => {
+                    const valor = selectedMonth ? filteredSummary.totalValor : totalValor;
+                    const pago = selectedMonth ? filteredSummary.totalPago : totalPago;
+                    if (!valor) return "0%";
+                    return `${((pago / valor) * 100).toFixed(1)}%`;
+                  })()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Percentual pago
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
+                <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {selectedMonth ? filteredSummary.totalRegistros : (summary?.summary?.totalRegistros || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Contas a pagar {selectedMonth ? "do mês" : "geral"}
+                </p>
+              </CardContent>
+            </Card>
+          </>
         )}
+      </div>
 
-        {/* Cards de Resumo */}
-        <div className="grid gap-4 md:grid-cols-4 mb-8">
-          {loadingSummary ? (
-            <>
-              {[1, 2, 3, 4].map((i) => (
-                <Card key={i}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-4 rounded" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-32 mb-2" />
-                    <Skeleton className="h-3 w-40" />
-                  </CardContent>
-                </Card>
-              ))}
-            </>
-          ) : (
-            <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total a Pagar</CardTitle>
-                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(selectedMonth ? filteredSummary.totalValor : totalValor)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Valor original {selectedMonth ? "do mês" : "geral"}
-                  </p>
-                </CardContent>
-              </Card>
+      {/* Gráfico de Evolução Mensal - apenas quando não há filtro */}
+      {!selectedMonth && despesasMensais && despesasMensais.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Evolução Mensal de Despesas</CardTitle>
+            <CardDescription>
+              Comparação de despesas pagas por mês (todos os 12 meses)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={despesasMensais} margin={{ top: 10, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                <XAxis
+                  dataKey="mesNome"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  tick={{ fill: "#9ca3af" }}
+                />
+                <YAxis
+                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  stroke="#6b7280"
+                  fontSize={12}
+                  tick={{ fill: "#9ca3af" }}
+                />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "6px",
+                    color: "#1f2937",
+                    fontWeight: 500,
+                    padding: "8px 12px"
+                  }}
+                />
+                <Bar
+                  dataKey="totalPago"
+                  fill={SERIES_COLORS.despesas}
+                  radius={[4, 4, 0, 0]}
+                >
+                  <LabelList
+                    dataKey="totalPago"
+                    position="top"
+                    formatter={(value: number) => {
+                      if (value === 0) return "";
+                      const formatted = formatCurrency(value);
+                      return formatted.replace("R$ ", "");
+                    }}
+                    style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
+                    offset={5}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Pago</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(selectedMonth ? filteredSummary.totalPago : totalPago)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valor efetivamente pago {selectedMonth ? "do mês" : "geral"}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Pagamento</CardTitle>
-              <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {(() => {
-                  const valor = selectedMonth ? filteredSummary.totalValor : totalValor;
-                  const pago = selectedMonth ? filteredSummary.totalPago : totalPago;
-                  if (!valor) return "0%";
-                  return `${((pago / valor) * 100).toFixed(1)}%`;
-                })()}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Percentual pago
-              </p>
-            </CardContent>
-          </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
-                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {selectedMonth ? filteredSummary.totalRegistros : (summary?.summary?.totalRegistros || 0)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Contas a pagar {selectedMonth ? "do mês" : "geral"}
-                  </p>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
-
-        {/* Gráfico de Evolução Mensal - apenas quando não há filtro */}
-        {!selectedMonth && despesasMensais && despesasMensais.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Evolução Mensal de Despesas</CardTitle>
-              <CardDescription>
-                Comparação de despesas pagas por mês (todos os 12 meses)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+      {/* Gráficos */}
+      <div className="grid gap-6 md:grid-cols-2 mb-8">
+        {/* Despesas por Categoria */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Despesas por Categoria</CardTitle>
+            <CardDescription>Distribuição das principais categorias</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {despesasCategoriaChart.length > 0 ? (
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={despesasMensais} margin={{ top: 10, right: 30, left: 20, bottom: 60 }}>
+                <BarChart data={despesasCategoriaChart} margin={{ top: 30, right: 30, left: 20, bottom: 80 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                  <XAxis 
-                    dataKey="mesNome" 
-                    stroke="#6b7280"
-                    fontSize={11}
+                  <XAxis
+                    dataKey="name"
                     angle={-45}
                     textAnchor="end"
-                    height={80}
-                    tick={{ fill: "#9ca3af" }}
+                    height={100}
+                    tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    stroke="#6b7280"
                   />
-                  <YAxis 
+                  <YAxis
                     tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                     stroke="#6b7280"
-                    fontSize={12}
+                    fontSize={11}
                     tick={{ fill: "#9ca3af" }}
                   />
-                  <Tooltip 
-                    formatter={(value: number) => formatCurrency(value)}
-                    contentStyle={{ 
-                      backgroundColor: "#fff", 
-                      border: "1px solid #e5e7eb", 
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value * 100)}
+                    contentStyle={{
+                      backgroundColor: "#fff",
+                      border: "1px solid #e5e7eb",
                       borderRadius: "6px",
                       color: "#1f2937",
-                      fontWeight: 500,
-                      padding: "8px 12px"
+                      fontWeight: 500
                     }}
                   />
-                  <Bar 
-                    dataKey="totalPago" 
+                  <Bar
+                    dataKey="value"
                     fill={SERIES_COLORS.despesas}
                     radius={[4, 4, 0, 0]}
                   >
-                    <LabelList 
-                      dataKey="totalPago" 
+                    <LabelList
+                      dataKey="value"
                       position="top"
                       formatter={(value: number) => {
                         if (value === 0) return "";
-                        const formatted = formatCurrency(value);
-                        return formatted.replace("R$ ", "");
+                        // Formatação mais compacta para valores grandes
+                        if (value >= 1000) {
+                          return `${(value / 1000).toFixed(0)}k`;
+                        }
+                        const formatted = formatCurrency(value * 100);
+                        return formatted.replace("R$ ", "").replace(",00", "");
                       }}
-                      style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
-                      offset={5}
+                      style={{ fill: "#f3f4f6", fontSize: "9px", fontWeight: 600 }}
+                      offset={8}
                     />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Gráficos */}
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
-          {/* Despesas por Categoria */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Despesas por Categoria</CardTitle>
-              <CardDescription>Distribuição das principais categorias</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {despesasCategoriaChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={despesasCategoriaChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={100} 
-                      tick={{ fontSize: 11, fill: "#9ca3af" }}
-                      stroke="#6b7280"
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                      stroke="#6b7280"
-                      fontSize={11}
-                      tick={{ fill: "#9ca3af" }}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ 
-                        backgroundColor: "#fff", 
-                        border: "1px solid #e5e7eb", 
-                        borderRadius: "6px",
-                        color: "#1f2937",
-                        fontWeight: 500
-                      }}
-                    />
-                    <Bar 
-                      dataKey="value" 
-                      fill={SERIES_COLORS.despesas}
-                      radius={[4, 4, 0, 0]}
-                    >
-                      <LabelList 
-                        dataKey="value" 
-                        position="top"
-                        formatter={(value: number) => {
-                          if (value === 0) return "";
-                          const formatted = formatCurrency(value * 100);
-                          return formatted.replace("R$ ", "");
-                        }}
-                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
-                        offset={5}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                  Sem dados disponíveis
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Despesas por Centro de Custo */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Despesas por Centro de Custo</CardTitle>
-              <CardDescription>Distribuição por área</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {despesasCentroCustoChart.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={despesasCentroCustoChart} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={100} 
-                      tick={{ fontSize: 11, fill: "#9ca3af" }}
-                      stroke="#6b7280"
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                      stroke="#6b7280"
-                      fontSize={11}
-                      tick={{ fill: "#9ca3af" }}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => formatCurrency(value * 100)}
-                      contentStyle={{ 
-                        backgroundColor: "#fff", 
-                        border: "1px solid #e5e7eb", 
-                        borderRadius: "6px",
-                        color: "#1f2937",
-                        fontWeight: 500
-                      }}
-                    />
-                    <Bar 
-                      dataKey="valor" 
-                      fill={SERIES_COLORS.despesas}
-                      radius={[4, 4, 0, 0]}
-                    >
-                      <LabelList 
-                        dataKey="valor" 
-                        position="top"
-                        formatter={(value: number) => {
-                          const formatted = formatCurrency(value * 100);
-                          return formatted.replace("R$ ", "");
-                        }}
-                        style={{ fill: "#f3f4f6", fontSize: "10px", fontWeight: 600 }}
-                        offset={5}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[350px] flex items-center justify-center text-muted-foreground">
-                  Sem dados disponíveis
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Top Fornecedores */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Top 10 Fornecedores</CardTitle>
-            <CardDescription>Fornecedores com maior valor pago {selectedMonth ? `no mês ${selectedMonth}` : "geral"}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {topFornecedoresChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={topFornecedoresChart} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    type="number" 
-                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                    stroke="#6b7280"
-                    fontSize={11}
-                  />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    width={150} 
-                    tick={{ fontSize: 11 }}
-                    stroke="#6b7280"
-                  />
-                  <Tooltip 
-                    formatter={(value: number) => formatCurrency(value * 100)}
-                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
-                  />
-                  <Bar 
-                    dataKey="valor" 
-                    fill={SERIES_COLORS.despesas}
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
             ) : (
-              <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
                 Sem dados disponíveis
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Tabela de Despesas por Fornecedor */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Despesas por Fornecedor</CardTitle>
-            <CardDescription>
-              Resumo de despesas agrupadas por fornecedor {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingDespesasPorFornecedor ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : despesasPorFornecedor && despesasPorFornecedor.length > 0 ? (
-              <DataTable
-                data={despesasPorFornecedor}
-                columns={[
-                  {
-                    key: "fornecedor",
-                    label: "Fornecedor",
-                    render: (value) => <span className="font-medium">{value || "-"}</span>,
-                  },
-                  {
-                    key: "quantidadePagamentos",
-                    label: "Qtd. Pagamentos",
-                    render: (value) => <span className="text-center">{value || 0}</span>,
-                    className: "text-center",
-                  },
-                  {
-                    key: "totalPagamentos",
-                    label: "Total de Pagamentos",
-                    render: (value) => (
-                      <span className="text-red-600 font-semibold">
-                        {formatCurrency(value)}
-                      </span>
-                    ),
-                    className: "text-right",
-                  },
-                  {
-                    key: "mediaPagamentos",
-                    label: "Média de Pagamentos",
-                    render: (value) => formatCurrency(value),
-                    className: "text-right",
-                  },
-                  {
-                    key: "ultimoPagamento",
-                    label: "Último Pagamento",
-                    render: (value) => (
-                      <span className={value ? "" : "text-muted-foreground"}>
-                        {value ? formatDate(value) : "N/A"}
-                      </span>
-                    ),
-                  },
-                ]}
-                searchable={true}
-                searchPlaceholder="Buscar por fornecedor..."
-                searchKeys={["fornecedor"]}
-                pageSize={15}
-                emptyMessage="Nenhuma despesa por fornecedor encontrada"
-                onRowClick={(row) => {
-                  const fornecedor = encodeURIComponent(row.fornecedor);
-                  window.location.href = `/despesas/fornecedor?fornecedor=${fornecedor}&uploadId=${latestUpload}${selectedMonth ? `&mes=${selectedMonth}` : ""}`;
-                }}
-              />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhuma despesa por fornecedor encontrada
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Tabela de Despesas */}
+        {/* Despesas por Centro de Custo */}
         <Card>
           <CardHeader>
-            <CardTitle>Detalhamento de Despesas</CardTitle>
-            <CardDescription>
-              Lista completa de contas a pagar {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
-            </CardDescription>
+            <CardTitle>Despesas por Centro de Custo</CardTitle>
+            <CardDescription>Distribuição por área</CardDescription>
           </CardHeader>
           <CardContent>
-            {loadingDespesas ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+            {despesasCentroCustoChart.length > 0 ? (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={despesasCentroCustoChart} margin={{ top: 30, right: 30, left: 20, bottom: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
+                  <XAxis
+                    dataKey="name"
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    stroke="#6b7280"
+                  />
+                  <YAxis
+                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    stroke="#6b7280"
+                    fontSize={11}
+                    tick={{ fill: "#9ca3af" }}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value * 100)}
+                    contentStyle={{
+                      backgroundColor: "#fff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "6px",
+                      color: "#1f2937",
+                      fontWeight: 500
+                    }}
+                  />
+                  <Bar
+                    dataKey="valor"
+                    fill={SERIES_COLORS.despesas}
+                    radius={[4, 4, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey="valor"
+                      position="top"
+                      formatter={(value: number) => {
+                        if (value === 0) return "";
+                        // Formatação mais compacta para valores grandes
+                        if (value >= 1000) {
+                          return `${(value / 1000).toFixed(0)}k`;
+                        }
+                        const formatted = formatCurrency(value * 100);
+                        return formatted.replace("R$ ", "").replace(",00", "");
+                      }}
+                      style={{ fill: "#f3f4f6", fontSize: "9px", fontWeight: 600 }}
+                      offset={8}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <DataTable
-                data={filteredDespesas}
-                columns={[
-                  {
-                    key: "fornecedor",
-                    label: "Fornecedor",
-                    render: (value) => <span className="font-medium">{value || "-"}</span>,
-                  },
-                  {
-                    key: "dataLancamento",
-                    label: "Data Lançamento",
-                    render: (value) => formatDate(value),
-                  },
-                  {
-                    key: "dataVencimento",
-                    label: "Data Vencimento",
-                    render: (value) => formatDate(value),
-                  },
-                  {
-                    key: "valor",
-                    label: "Valor",
-                    render: (value) => formatCurrency(value),
-                    className: "text-right",
-                  },
-                  {
-                    key: "valorPago",
-                    label: "Valor Pago",
-                    render: (value) => (
-                      <span className="text-red-600 font-semibold">
-                        {formatCurrency(value)}
-                      </span>
-                    ),
-                    className: "text-right",
-                  },
-                  {
-                    key: "dataPagamento",
-                    label: "Data Pagamento",
-                    render: (value) => formatDate(value),
-                  },
-                  {
-                    key: "mes",
-                    label: "Mês",
-                    render: (value) => value ? `Mês ${value}` : "-",
-                  },
-                  {
-                    key: "historico",
-                    label: "Histórico",
-                    render: (value) => (
-                      <span className="max-w-xs truncate block" title={value || ""}>
-                        {value || "-"}
-                      </span>
-                    ),
-                  },
-                ]}
-                searchable={true}
-                searchPlaceholder="Buscar por fornecedor, histórico..."
-                searchKeys={["fornecedor", "historico"]}
-                pageSize={15}
-                emptyMessage="Nenhuma despesa encontrada"
-              />
+              <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+                Sem dados disponíveis
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Top Fornecedores */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Top 10 Fornecedores</CardTitle>
+          <CardDescription>Fornecedores com maior valor pago {selectedMonth ? `no mês ${selectedMonth}` : "geral"}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {topFornecedoresChart.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={topFornecedoresChart} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  type="number"
+                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                  stroke="#6b7280"
+                  fontSize={11}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tick={{ fontSize: 11 }}
+                  stroke="#6b7280"
+                />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(value * 100)}
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "6px" }}
+                />
+                <Bar
+                  dataKey="valor"
+                  fill={SERIES_COLORS.despesas}
+                  radius={[0, 4, 4, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+              Sem dados disponíveis
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tabela de Despesas por Fornecedor */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Despesas por Fornecedor</CardTitle>
+          <CardDescription>
+            Resumo de despesas agrupadas por fornecedor {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingDespesasPorFornecedor ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : despesasPorFornecedor && despesasPorFornecedor.length > 0 ? (
+            <DataTable
+              data={despesasPorFornecedor}
+              columns={[
+                {
+                  key: "fornecedor",
+                  label: "Fornecedor",
+                  render: (value) => <span className="font-medium">{value || "-"}</span>,
+                },
+                {
+                  key: "quantidadePagamentos",
+                  label: "Qtd. Pagamentos",
+                  render: (value) => <span className="text-center">{value || 0}</span>,
+                  className: "text-center",
+                },
+                {
+                  key: "totalPagamentos",
+                  label: "Total de Pagamentos",
+                  render: (value) => (
+                    <span className="text-red-600 font-semibold">
+                      {formatCurrency(value)}
+                    </span>
+                  ),
+                  className: "text-right",
+                },
+                {
+                  key: "mediaPagamentos",
+                  label: "Média de Pagamentos",
+                  render: (value) => formatCurrency(value),
+                  className: "text-right",
+                },
+                {
+                  key: "ultimoPagamento",
+                  label: "Último Pagamento",
+                  render: (value) => (
+                    <span className={value ? "" : "text-muted-foreground"}>
+                      {value ? formatDate(value) : "N/A"}
+                    </span>
+                  ),
+                },
+              ]}
+              searchable={true}
+              searchPlaceholder="Buscar por fornecedor..."
+              searchKeys={["fornecedor"]}
+              pageSize={15}
+              emptyMessage="Nenhuma despesa por fornecedor encontrada"
+              onRowClick={(row) => {
+                const fornecedor = encodeURIComponent(row.fornecedor);
+                window.location.href = `/despesas/fornecedor?fornecedor=${fornecedor}&uploadId=${latestUpload}${selectedMonth ? `&mes=${selectedMonth}` : ""}`;
+              }}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhuma despesa por fornecedor encontrada
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tabela de Despesas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalhamento de Despesas</CardTitle>
+          <CardDescription>
+            Lista completa de contas a pagar {selectedMonth ? `do mês ${selectedMonth}` : "geral"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingDespesas ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <DataTable
+              data={filteredDespesas}
+              columns={[
+                {
+                  key: "fornecedor",
+                  label: "Fornecedor",
+                  render: (value) => <span className="font-medium">{value || "-"}</span>,
+                },
+                {
+                  key: "dataLancamento",
+                  label: "Data Lançamento",
+                  render: (value) => formatDate(value),
+                },
+                {
+                  key: "dataVencimento",
+                  label: "Data Vencimento",
+                  render: (value) => formatDate(value),
+                },
+                {
+                  key: "valor",
+                  label: "Valor",
+                  render: (value) => formatCurrency(value),
+                  className: "text-right",
+                },
+                {
+                  key: "valorPago",
+                  label: "Valor Pago",
+                  render: (value) => (
+                    <span className="text-red-600 font-semibold">
+                      {formatCurrency(value)}
+                    </span>
+                  ),
+                  className: "text-right",
+                },
+                {
+                  key: "dataPagamento",
+                  label: "Data Pagamento",
+                  render: (value) => formatDate(value),
+                },
+                {
+                  key: "mes",
+                  label: "Mês",
+                  render: (value) => value ? `Mês ${value}` : "-",
+                },
+                {
+                  key: "historico",
+                  label: "Histórico",
+                  render: (value) => (
+                    <span className="max-w-xs truncate block" title={value || ""}>
+                      {value || "-"}
+                    </span>
+                  ),
+                },
+              ]}
+              searchable={true}
+              searchPlaceholder="Buscar por fornecedor, histórico..."
+              searchKeys={["fornecedor", "historico"]}
+              pageSize={15}
+              emptyMessage="Nenhuma despesa encontrada"
+            />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
