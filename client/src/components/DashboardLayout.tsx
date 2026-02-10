@@ -289,8 +289,8 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1 space-y-1">
+          <SidebarContent className="gap-0 py-2">
+            <SidebarMenu className="px-3 space-y-1">
               {menuItems.map(item => {
                 const isActive = location === item.path;
                 return (
@@ -298,32 +298,37 @@ function DashboardLayoutContent({
                     <button
                       onClick={() => setLocation(item.path)}
                       className={`
-                        w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
-                        transition-all duration-200 font-medium text-sm
+                        w-full flex items-start gap-3 px-3 py-3 rounded-xl
+                        transition-all duration-200 text-left
                         ${isActive
-                          ? `${item.activeColor} text-foreground shadow-sm`
-                          : `${item.hoverColor} text-muted-foreground hover:text-foreground`
+                          ? `${item.activeColor} text-foreground shadow-md border-l-4`
+                          : `hover:bg-accent/50 text-muted-foreground hover:text-foreground border-l-4 border-transparent`
                         }
                         group-data-[collapsible=icon]:justify-center
                         group-data-[collapsible=icon]:px-2
+                        group-data-[collapsible=icon]:items-center
                       `}
                       title={`${item.label} - ${item.description}`}
                     >
-                      <item.icon
-                        className={`h-5 w-5 shrink-0 transition-colors ${isActive ? item.color : 'text-muted-foreground group-hover:' + item.color
-                          }`}
-                      />
+                      <div className={`
+                        h-10 w-10 rounded-lg flex items-center justify-center shrink-0
+                        transition-all duration-200
+                        ${isActive
+                          ? `${item.bgColor} ${item.color}`
+                          : `bg-muted/50 text-muted-foreground group-hover:${item.bgColor} group-hover:${item.color}`
+                        }
+                      `}>
+                        <item.icon className="h-5 w-5" />
+                      </div>
+
                       <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                        <div className="truncate font-medium">
+                        <div className={`text-sm font-semibold truncate ${isActive ? 'text-foreground' : ''}`}>
                           {item.label}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                        <div className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
                           {item.description}
                         </div>
                       </div>
-                      {isActive && (
-                        <div className="ml-auto h-2 w-2 rounded-full bg-current opacity-70 group-data-[collapsible=icon]:hidden" />
-                      )}
                     </button>
                   </SidebarMenuItem>
                 );
