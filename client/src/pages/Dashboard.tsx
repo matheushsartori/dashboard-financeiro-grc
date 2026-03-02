@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowUpRight, ArrowDownRight, DollarSign, Users, Building2, Loader2, TrendingUp, TrendingDown, XCircle } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Legend } from "recharts";
-import { MonthFilter } from "@/components/MonthFilter";
+import { MonthYearFilter } from "@/components/MonthYearFilter";
 import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
 import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
@@ -25,6 +25,11 @@ export default function Dashboard() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(() => {
+    // Tentar pegar o ano atual como padrão, ou 2025 se for antes de 2025
+    const currentYear = new Date().getFullYear();
+    return currentYear || 2025;
+  });
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
 
   // Buscar filial selecionada do localStorage
@@ -106,7 +111,7 @@ export default function Dashboard() {
 
   // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getDashboardSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos para dados críticos
@@ -115,7 +120,7 @@ export default function Dashboard() {
 
   // Carregar dados secundários em paralelo (mas só após summary estar disponível)
   const { data: contasPagarData, isLoading: loadingContasPagar } = trpc.financial.getContasAPagarSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -123,7 +128,7 @@ export default function Dashboard() {
   );
 
   const { data: contasReceberData, isLoading: loadingContasReceber } = trpc.financial.getContasAReceberSummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -131,7 +136,7 @@ export default function Dashboard() {
   );
 
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 5 * 60 * 1000, // Dados mensais mudam menos, cache maior
@@ -327,7 +332,12 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4 flex-wrap">
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <MonthYearFilter
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
           <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
         </div>
       </div>

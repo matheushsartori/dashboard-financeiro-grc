@@ -6,7 +6,7 @@ import { ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
 // DashboardLayout removido - agora é gerenciado pelo App.tsx
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { DataTable } from "@/components/DataTable";
-import { MonthFilter } from "@/components/MonthFilter";
+import { MonthYearFilter } from "@/components/MonthYearFilter";
 import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,10 @@ export default function Receitas() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(() => {
+    const currentYear = new Date().getFullYear();
+    return currentYear || 2025;
+  });
 
   // Buscar filial selecionada do localStorage
   const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
@@ -69,6 +73,7 @@ export default function Receitas() {
         utils.financial.getContasAReceber.invalidate();
         utils.financial.getReceitasMensais.invalidate();
         utils.financial.getReceitasPorEmpresa.invalidate();
+        utils.financial.getReceitasPorFilial.invalidate();
       }
     };
 
@@ -95,7 +100,7 @@ export default function Receitas() {
 
   // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAReceberSummary.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
@@ -104,7 +109,7 @@ export default function Receitas() {
 
   // Carregar receitas detalhadas em paralelo
   const { data: receitas, isLoading: loadingReceitas } = trpc.financial.getContasAReceber.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
@@ -113,7 +118,7 @@ export default function Receitas() {
 
   // Buscar receitas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: receitasMensais, isLoading: loadingReceitasMensais } = trpc.financial.getReceitasMensais.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
       staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
@@ -122,7 +127,7 @@ export default function Receitas() {
 
   // Buscar receitas por empresa - carregar após summary estar pronto
   const { data: receitasPorEmpresa, isLoading: loadingReceitasPorEmpresa } = trpc.financial.getReceitasPorEmpresa.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -131,7 +136,7 @@ export default function Receitas() {
 
   // Buscar receitas por filial (comparação entre filiais) - sempre sem filtro de filial
   const { data: receitasPorFilial, isLoading: loadingReceitasPorFilial } = trpc.financial.getReceitasPorFilial.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -263,7 +268,12 @@ export default function Receitas() {
         </div>
         <div className="flex items-center gap-4">
           <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <MonthYearFilter
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
         </div>
       </div>
 

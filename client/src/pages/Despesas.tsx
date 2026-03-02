@@ -7,7 +7,7 @@ import { ArrowDownRight, Loader2, TrendingDown } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { Skeleton } from "@/components/Skeleton";
 import { DataTable } from "@/components/DataTable";
-import { MonthFilter } from "@/components/MonthFilter";
+import { MonthYearFilter } from "@/components/MonthYearFilter";
 import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,10 @@ export default function Despesas() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(() => {
+    const currentYear = new Date().getFullYear();
+    return currentYear || 2025;
+  });
 
   // Buscar filial selecionada do localStorage
   const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
@@ -95,7 +99,7 @@ export default function Despesas() {
 
   // Priorizar: carregar summary primeiro (dados essenciais)
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getContasAPagarSummary.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
@@ -104,7 +108,7 @@ export default function Despesas() {
 
   // Carregar despesas detalhadas em paralelo
   const { data: despesas, isLoading: loadingDespesas } = trpc.financial.getContasAPagar.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
@@ -113,7 +117,7 @@ export default function Despesas() {
 
   // Buscar despesas por fornecedor - carregar após summary estar pronto
   const { data: despesasPorFornecedor, isLoading: loadingDespesasPorFornecedor } = trpc.financial.getDespesasPorFornecedor.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !!summary, // Só carrega após summary estar pronto
       staleTime: 3 * 60 * 1000,
@@ -122,7 +126,7 @@ export default function Despesas() {
 
   // Buscar despesas mensais para gráfico de evolução (apenas quando não há filtro de mês)
   const { data: despesasMensais, isLoading: loadingDespesasMensais } = trpc.financial.getDespesasMensais.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload && !selectedMonth && !!summary, // Só carrega quando não há filtro de mês e summary pronto
       staleTime: 5 * 60 * 1000, // Dados mensais mudam menos
@@ -210,7 +214,12 @@ export default function Despesas() {
         </div>
         <div className="flex items-center gap-4">
           <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <MonthYearFilter
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
         </div>
       </div>
 

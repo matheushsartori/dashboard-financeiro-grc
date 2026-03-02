@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, DollarSign, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from "recharts";
-import { MonthFilter } from "@/components/MonthFilter";
+import { MonthYearFilter } from "@/components/MonthYearFilter";
 import { RealizadoProjetadoFilter, TipoVisualizacao } from "@/components/RealizadoProjetadoFilter";
 import { FilialFilter, TipoEscopoFilial, getCodFilialFilter } from "@/components/FilialFilter";
 import { SERIES_COLORS } from "@/lib/chartColors";
@@ -24,8 +24,12 @@ export default function DRE() {
   const searchParams = new URLSearchParams(useSearch());
   const uploadId = searchParams.get("uploadId");
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(() => {
+    const currentYear = new Date().getFullYear();
+    return currentYear || 2025;
+  });
   const [tipoVisualizacao, setTipoVisualizacao] = useState<TipoVisualizacao>("realizado");
-  
+
   // Buscar filial selecionada do localStorage
   const [escopoFilial, setEscopoFilial] = useState<TipoEscopoFilial>(() => {
     const saved = localStorage.getItem("selectedFilial");
@@ -49,8 +53,8 @@ export default function DRE() {
   const utils = trpc.useUtils();
 
   // Converter escopo de filial para array de códigos
-  const codFilialFilter = useMemo(() => 
-    getCodFilialFilter(escopoFilial, filiaisDisponiveis), 
+  const codFilialFilter = useMemo(() =>
+    getCodFilialFilter(escopoFilial, filiaisDisponiveis),
     [escopoFilial, filiaisDisponiveis]
   );
 
@@ -69,7 +73,7 @@ export default function DRE() {
 
     window.addEventListener("filialChanged", handleFilialChanged);
     window.addEventListener("storage", handleFilialChanged);
-    
+
     return () => {
       window.removeEventListener("filialChanged", handleFilialChanged);
       window.removeEventListener("storage", handleFilialChanged);
@@ -89,8 +93,8 @@ export default function DRE() {
 
   // Buscar dados do DRE (com filtro de mês e tipo de visualização) - prioridade alta
   const { data: dreData, isLoading: loadingDRE } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao, codFilial: codFilialFilter },
-    { 
+    { uploadId: latestUpload!, mes: selectedMonth ?? undefined, tipoVisualizacao, codFilial: codFilialFilter, ano: selectedYear },
+    {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
     }
@@ -98,8 +102,8 @@ export default function DRE() {
 
   // Buscar dados mensais para gráfico - carregar em paralelo
   const { data: dadosMensais, isLoading: loadingDadosMensais } = trpc.financial.getDadosMensais.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { 
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
+    {
       enabled: !!latestUpload,
       staleTime: 5 * 60 * 1000, // 5 minutos - dados mensais mudam menos
     }
@@ -107,8 +111,8 @@ export default function DRE() {
 
   // Buscar DRE de todos os meses para tabela horizontal - carregar após dados principais
   const { data: drePorMeses, isLoading: loadingDREPorMeses } = trpc.financial.getDREPorMeses.useQuery(
-    { uploadId: latestUpload!, codFilial: codFilialFilter },
-    { 
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
+    {
       enabled: !!latestUpload && !!dreData, // Só carrega após DRE principal estar pronto
       staleTime: 5 * 60 * 1000,
     }
@@ -116,8 +120,8 @@ export default function DRE() {
 
   // Buscar dados totais (sem filtro) para comparação - só quando necessário
   const { data: dreTotal, isLoading: loadingDRETotal } = trpc.financial.getDRESummary.useQuery(
-    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter },
-    { 
+    { uploadId: latestUpload!, tipoVisualizacao, codFilial: codFilialFilter, ano: selectedYear },
+    {
       enabled: !!latestUpload && !!selectedMonth && !!dreData, // Só busca total quando há filtro de mês e DRE principal pronto
       staleTime: 2 * 60 * 1000,
     }
@@ -232,7 +236,12 @@ export default function DRE() {
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <FilialFilter value={escopoFilial} onChange={handleFilialChange} uploadId={latestUpload} />
-          <MonthFilter value={selectedMonth} onChange={setSelectedMonth} />
+          <MonthYearFilter
+            month={selectedMonth}
+            year={selectedYear}
+            onMonthChange={setSelectedMonth}
+            onYearChange={setSelectedYear}
+          />
           <RealizadoProjetadoFilter value={tipoVisualizacao} onChange={setTipoVisualizacao} />
         </div>
       </div>
@@ -412,19 +421,19 @@ export default function DRE() {
           <ResponsiveContainer width="100%" height={450}>
             <BarChart data={dreChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-              <XAxis 
-                dataKey="categoria" 
+              <XAxis
+                dataKey="categoria"
                 stroke="#6b7280"
                 fontSize={12}
                 tick={{ fill: "#9ca3af" }}
               />
-              <YAxis 
+              <YAxis
                 tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
                 stroke="#6b7280"
                 fontSize={11}
                 tick={{ fill: "#9ca3af" }}
               />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number) => formatCurrency(value * 100)}
                 contentStyle={{
                   backgroundColor: "#1f2937",
@@ -549,7 +558,7 @@ export default function DRE() {
                       </TableCell>
                     ))}
                     <TableCell className="text-right font-semibold bg-muted text-muted-foreground">
-                      {drePorMeses.reduce((sum, item) => sum + item.receitas, 0) > 0 
+                      {drePorMeses.reduce((sum, item) => sum + item.receitas, 0) > 0
                         ? ((drePorMeses.reduce((sum, item) => sum + item.lucroLiquido, 0) / drePorMeses.reduce((sum, item) => sum + item.receitas, 0)) * 100).toFixed(1)
                         : "0.0"}%
                     </TableCell>
@@ -646,21 +655,21 @@ export default function DRE() {
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={filteredDadosMensais} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(229, 231, 235, 0.3)" />
-                <XAxis 
-                  dataKey="mesNome" 
-                  angle={-45} 
-                  textAnchor="end" 
-                  height={80} 
+                <XAxis
+                  dataKey="mesNome"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
                   tick={{ fontSize: 11, fill: "#9ca3af" }}
                   stroke="#6b7280"
                 />
-                <YAxis 
+                <YAxis
                   tickFormatter={(value) => `R$ ${(value / 100000).toFixed(0)}k`}
                   stroke="#6b7280"
                   fontSize={11}
                   tick={{ fill: "#9ca3af" }}
                 />
-                <Tooltip 
+                <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
                   contentStyle={{
                     backgroundColor: "#1f2937",
@@ -671,9 +680,9 @@ export default function DRE() {
                   labelStyle={{ color: "#f3f4f6", fontWeight: 600, marginBottom: "4px" }}
                 />
                 <Legend />
-                <Bar 
-                  dataKey="receitas" 
-                  fill={SERIES_COLORS.receitas} 
+                <Bar
+                  dataKey="receitas"
+                  fill={SERIES_COLORS.receitas}
                   name="Receitas"
                   radius={[4, 4, 0, 0]}
                 >
@@ -685,9 +694,9 @@ export default function DRE() {
                     fontSize={9}
                   />
                 </Bar>
-                <Bar 
-                  dataKey="despesas" 
-                  fill={SERIES_COLORS.despesas} 
+                <Bar
+                  dataKey="despesas"
+                  fill={SERIES_COLORS.despesas}
                   name="Despesas"
                   radius={[4, 4, 0, 0]}
                 >
@@ -699,9 +708,9 @@ export default function DRE() {
                     fontSize={9}
                   />
                 </Bar>
-                <Bar 
-                  dataKey="resultado" 
-                  fill={SERIES_COLORS.resultado} 
+                <Bar
+                  dataKey="resultado"
+                  fill={SERIES_COLORS.resultado}
                   name="Resultado"
                   radius={[4, 4, 0, 0]}
                 >

@@ -38,6 +38,7 @@ export const uploads = pgTable("uploads", {
   userId: integer("user_id").notNull(),
   fileName: varchar("file_name", { length: 255 }).notNull(),
   fileSize: integer("file_size").notNull(),
+  fileData: text("file_data"), // Base64 do arquivo original
   status: uploadStatusEnum("status").default("processing").notNull(),
   errorMessage: text("error_message"),
   uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
@@ -113,6 +114,7 @@ export const contasAPagar = pgTable("contas_a_pagar", {
   valorPago: integer("valor_pago"), // Armazenar em centavos
   dataPagamento: timestamp("data_pagamento"),
   mes: integer("mes"),
+  ano: integer("ano"),
   numBanco: varchar("num_banco", { length: 50 }),
   banco: varchar("banco", { length: 100 }),
   agencia: varchar("agencia", { length: 50 }),
@@ -145,6 +147,7 @@ export const contasAReceber = pgTable("contas_a_receber", {
   valorRecebido: integer("valor_recebido"), // Armazenar em centavos
   dataRecebimento: timestamp("data_recebimento"),
   mes: integer("mes"),
+  ano: integer("ano"),
   numBanco: varchar("num_banco", { length: 50 }),
   banco: varchar("banco", { length: 100 }),
   agencia: varchar("agencia", { length: 50 }),
@@ -172,6 +175,8 @@ export const folhaPagamento = pgTable("folha_pagamento", {
   mes6: integer("mes_6"),
   mes7: integer("mes_7"),
   mes8: integer("mes_8"),
+  mes: integer("mes"),
+  ano: integer("ano"),
   total: integer("total"), // Armazenar em centavos
 });
 

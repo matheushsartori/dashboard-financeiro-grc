@@ -93,7 +93,7 @@ export default function Folha() {
   );
 
   const { data: summary, isLoading: loadingSummary } = trpc.financial.getFolhaPagamentoSummary.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, mes: selectedMonth, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 2 * 60 * 1000, // 2 minutos
@@ -101,7 +101,7 @@ export default function Folha() {
   );
 
   const { data: folha, isLoading: loadingFolha } = trpc.financial.getFolhaPagamento.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, mes: selectedMonth, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
@@ -110,7 +110,7 @@ export default function Folha() {
 
   // Buscar folha separada por tipo (Salário, Comissão, Premiação)
   const { data: folhaSeparada, isLoading: loadingFolhaSeparada } = trpc.financial.getFolhaPagamentoSeparada.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, mes: selectedMonth, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,
@@ -119,7 +119,7 @@ export default function Folha() {
 
   // Buscar folha baseada em despesas de pessoal (da aba PAGO)
   const { data: folhaPorDespesas, isLoading: loadingFolhaPorDespesas } = trpc.financial.getFolhaPagamentoPorDespesas.useQuery(
-    { uploadId: latestUpload! },
+    { uploadId: latestUpload!, codFilial: codFilialFilter, ano: selectedYear },
     {
       enabled: !!latestUpload,
       staleTime: 3 * 60 * 1000,

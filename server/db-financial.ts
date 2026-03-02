@@ -450,7 +450,7 @@ export async function insertContasAPagar(data: InsertContaAPagar[]) {
   console.log(`[Insert] Contas a Pagar: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
-export async function getContasAPagarByUpload(uploadId: number, codFilial?: number[] | null) {
+export async function getContasAPagarByUpload(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -460,10 +460,14 @@ export async function getContasAPagarByUpload(uploadId: number, codFilial?: numb
     whereCondition = and(whereCondition, filialFilter);
   }
 
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
+  }
+
   return db.select().from(contasAPagar).where(whereCondition);
 }
 
-export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
+export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -476,6 +480,10 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   if (tipoVisualizacao === "realizado") {
@@ -519,7 +527,7 @@ export async function getContasAPagarSummary(uploadId: number, tipoVisualizacao:
   return result[0];
 }
 
-export async function getTopFornecedores(uploadId: number, limit: number = 10, codFilial?: number[] | null) {
+export async function getTopFornecedores(uploadId: number, limit: number = 10, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -527,6 +535,10 @@ export async function getTopFornecedores(uploadId: number, limit: number = 10, c
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   return db
@@ -541,7 +553,7 @@ export async function getTopFornecedores(uploadId: number, limit: number = 10, c
     .limit(limit);
 }
 
-export async function getDespesasPorFornecedor(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
+export async function getDespesasPorFornecedor(uploadId: number, mes?: number | null, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -550,6 +562,10 @@ export async function getDespesasPorFornecedor(uploadId: number, mes?: number | 
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   if (mes !== null && mes !== undefined) {
@@ -600,7 +616,7 @@ export async function getDespesasPorFornecedorDetalhes(uploadId: number, fornece
     .orderBy(desc(contasAPagar.dataPagamento));
 }
 
-export async function getDespesasPorCategoria(uploadId: number, codFilial?: number[] | null) {
+export async function getDespesasPorCategoria(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -608,6 +624,10 @@ export async function getDespesasPorCategoria(uploadId: number, codFilial?: numb
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   return db
@@ -621,7 +641,7 @@ export async function getDespesasPorCategoria(uploadId: number, codFilial?: numb
     .orderBy(desc(sql`SUM(${contasAPagar.valorPago})`));
 }
 
-export async function getDespesasPorCentroCusto(uploadId: number, codFilial?: number[] | null) {
+export async function getDespesasPorCentroCusto(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -629,6 +649,10 @@ export async function getDespesasPorCentroCusto(uploadId: number, codFilial?: nu
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   return db
@@ -724,7 +748,7 @@ export async function insertContasAReceber(data: InsertContaAReceber[]) {
   console.log(`[Insert] Contas a Receber: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
-export async function getContasAReceberByUpload(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
+export async function getContasAReceberByUpload(uploadId: number, mes?: number | null, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -732,6 +756,10 @@ export async function getContasAReceberByUpload(uploadId: number, mes?: number |
   const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   // Filtrar por mês se fornecido
@@ -742,7 +770,7 @@ export async function getContasAReceberByUpload(uploadId: number, mes?: number |
   return db.select().from(contasAReceber).where(whereCondition);
 }
 
-export async function getContasAReceberSummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
+export async function getContasAReceberSummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -756,6 +784,10 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
   const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   if (mes !== null && mes !== undefined) {
@@ -816,7 +848,7 @@ export async function getContasAReceberSummary(uploadId: number, mes?: number | 
   return result[0];
 }
 
-export async function getTopClientes(uploadId: number, limit: number = 10, codFilial?: number[] | null) {
+export async function getTopClientes(uploadId: number, limit: number = 10, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -828,6 +860,10 @@ export async function getTopClientes(uploadId: number, limit: number = 10, codFi
   const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   // Apenas valores realmente recebidos (valorRecebido > 0)
@@ -844,7 +880,7 @@ export async function getTopClientes(uploadId: number, limit: number = 10, codFi
 }
 
 // Obter receitas agrupadas por HISTÓRICO (composição da receita)
-export async function getReceitasPorHistorico(uploadId: number, codFilial?: number[] | null) {
+export async function getReceitasPorHistorico(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -857,6 +893,10 @@ export async function getReceitasPorHistorico(uploadId: number, codFilial?: numb
   const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   return db
@@ -872,7 +912,7 @@ export async function getReceitasPorHistorico(uploadId: number, codFilial?: numb
 }
 
 // Obter receitas agrupadas por FILIAL (para comparação entre filiais)
-export async function getReceitasPorFilial(uploadId: number, mes?: number | null) {
+export async function getReceitasPorFilial(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -885,6 +925,10 @@ export async function getReceitasPorFilial(uploadId: number, mes?: number | null
   // Filtrar por mês se fornecido
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   const result = await db
@@ -915,7 +959,7 @@ export async function getReceitasPorFilial(uploadId: number, mes?: number | null
 }
 
 
-export async function getReceitasPorEmpresa(uploadId: number, mes?: number | null, codFilial?: number[] | null) {
+export async function getReceitasPorEmpresa(uploadId: number, mes?: number | null, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -929,6 +973,10 @@ export async function getReceitasPorEmpresa(uploadId: number, mes?: number | nul
 
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAReceber.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   // Apenas valores realmente recebidos (valorRecebido > 0)
@@ -1117,16 +1165,36 @@ export async function insertFolhaPagamento(data: InsertFolhaPagamento[]) {
   console.log(`[Insert] Folha de Pagamento: Concluído - ${inserted}/${validData.length} registros inseridos, ${errors} erros`);
 }
 
-export async function getFolhaPagamentoByUpload(uploadId: number) {
+export async function getFolhaPagamentoByUpload(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(folhaPagamento).where(eq(folhaPagamento.uploadId, uploadId));
+  let whereCondition: any = eq(folhaPagamento.uploadId, uploadId);
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.ano, ano));
+  }
+
+  return db.select().from(folhaPagamento).where(whereCondition);
 }
 
-export async function getFolhaPagamentoSummary(uploadId: number) {
+export async function getFolhaPagamentoSummary(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
+
+  let whereCondition: any = eq(folhaPagamento.uploadId, uploadId);
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.ano, ano));
+  }
 
   const result = await db
     .select({
@@ -1134,12 +1202,12 @@ export async function getFolhaPagamentoSummary(uploadId: number) {
       totalFuncionarios: sql<number>`COUNT(DISTINCT ${folhaPagamento.nome})`,
     })
     .from(folhaPagamento)
-    .where(eq(folhaPagamento.uploadId, uploadId));
+    .where(whereCondition);
 
   return result[0];
 }
 
-export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamento: string) {
+export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamento: string, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return 0;
 
@@ -1165,6 +1233,14 @@ export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamen
     );
   }
 
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.ano, ano));
+  }
+
   const result = await db
     .select({
       total: sql<number>`COALESCE(SUM(${folhaPagamento.total}), 0)`,
@@ -1175,9 +1251,19 @@ export async function getFolhaPagamentoTotalByType(uploadId: number, tipoPagamen
   return result[0].total;
 }
 
-export async function getCustoPorArea(uploadId: number) {
+export async function getCustoPorArea(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
+
+  let whereCondition: any = eq(folhaPagamento.uploadId, uploadId);
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(folhaPagamento.ano, ano));
+  }
 
   return db
     .select({
@@ -1185,7 +1271,7 @@ export async function getCustoPorArea(uploadId: number) {
       totalCusto: sql<number>`SUM(${folhaPagamento.total})`,
     })
     .from(folhaPagamento)
-    .where(eq(folhaPagamento.uploadId, uploadId))
+    .where(whereCondition)
     .groupBy(folhaPagamento.area)
     .orderBy(desc(sql`SUM(${folhaPagamento.total})`));
 }
@@ -1230,16 +1316,36 @@ export async function insertSaldosBancarios(data: any[]) {
   }
 }
 
-export async function getSaldosBancariosByUpload(uploadId: number) {
+export async function getSaldosBancariosByUpload(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(saldosBancarios).where(eq(saldosBancarios.uploadId, uploadId));
+  let whereCondition: any = eq(saldosBancarios.uploadId, uploadId);
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(saldosBancarios.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(saldosBancarios.ano, ano));
+  }
+
+  return db.select().from(saldosBancarios).where(whereCondition).orderBy(desc(saldosBancarios.saldoTotal));
 }
 
-export async function getSaldosBancariosSummary(uploadId: number) {
+export async function getSaldosBancariosSummary(uploadId: number, mes?: number | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
+
+  let whereCondition: any = eq(saldosBancarios.uploadId, uploadId);
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(saldosBancarios.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(saldosBancarios.ano, ano));
+  }
 
   const result = await db
     .select({
@@ -1247,20 +1353,20 @@ export async function getSaldosBancariosSummary(uploadId: number) {
       totalBancos: sql<number>`COUNT(DISTINCT ${saldosBancarios.banco})`,
     })
     .from(saldosBancarios)
-    .where(eq(saldosBancarios.uploadId, uploadId));
+    .where(whereCondition);
 
   return result[0];
 }
 
 // ===== DASHBOARD SUMMARY =====
 
-export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
+export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
   const [contasPagar, contasReceber, folha, saldos] = await Promise.all([
-    getContasAPagarSummary(uploadId, tipoVisualizacao, codFilial),
-    getContasAReceberSummary(uploadId, undefined, tipoVisualizacao, codFilial),
+    getContasAPagarSummary(uploadId, tipoVisualizacao, codFilial, ano),
+    getContasAReceberSummary(uploadId, undefined, tipoVisualizacao, codFilial, ano),
     getFolhaPagamentoSummary(uploadId),
     getSaldosBancariosSummary(uploadId),
   ]);
@@ -1275,7 +1381,7 @@ export async function getDashboardSummary(uploadId: number, tipoVisualizacao: "r
 
 // ===== DADOS MENSAIS =====
 
-export async function getReceitasMensais(uploadId: number, codFilial?: number[] | null) {
+export async function getReceitasMensais(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -1283,6 +1389,10 @@ export async function getReceitasMensais(uploadId: number, codFilial?: number[] 
   const filialFilter = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAReceber.ano, ano));
   }
 
   // Usar EXTRACT(MONTH FROM data_recebimento) quando mes for NULL para garantir que todos os registros sejam incluídos
@@ -1309,7 +1419,7 @@ export async function getReceitasMensais(uploadId: number, codFilial?: number[] 
     }));
 }
 
-export async function getDespesasMensais(uploadId: number, codFilial?: number[] | null) {
+export async function getDespesasMensais(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -1317,6 +1427,10 @@ export async function getDespesasMensais(uploadId: number, codFilial?: number[] 
   const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilter) {
     whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   const despesasPorMes = await db
@@ -1363,7 +1477,7 @@ export async function getDespesasMensais(uploadId: number, codFilial?: number[] 
   return todosMeses;
 }
 
-export async function getDadosMensais(uploadId: number, codFilial?: number[] | null) {
+export async function getDadosMensais(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -1374,6 +1488,10 @@ export async function getDadosMensais(uploadId: number, codFilial?: number[] | n
   const filialFilterReceitas = buildFilialFilter(codFilial, contasAReceber.codFilial);
   if (filialFilterReceitas) {
     whereReceitas = and(whereReceitas, filialFilterReceitas);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereReceitas = and(whereReceitas, eq(contasAReceber.ano, ano));
   }
 
   // Buscar receitas por mês - apenas valores realmente recebidos
@@ -1394,6 +1512,10 @@ export async function getDadosMensais(uploadId: number, codFilial?: number[] | n
   const filialFilterDespesas = buildFilialFilter(codFilial, contasAPagar.codFilial);
   if (filialFilterDespesas) {
     whereDespesas = and(whereDespesas, filialFilterDespesas);
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereDespesas = and(whereDespesas, eq(contasAPagar.ano, ano));
   }
 
   // Buscar despesas por mês
@@ -1439,7 +1561,7 @@ export async function getDadosMensais(uploadId: number, codFilial?: number[] | n
 
 // ===== DRE ESPECÍFICO =====
 
-export async function getDRESummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null) {
+export async function getDRESummary(uploadId: number, mes?: number | null, tipoVisualizacao: "realizado" | "projetado" | "todos" = "realizado", codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return null;
 
@@ -1457,6 +1579,10 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 
   if (mes !== null && mes !== undefined) {
     receitasWhere = and(receitasWhere, eq(contasAReceber.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    receitasWhere = and(receitasWhere, eq(contasAReceber.ano, ano));
   }
 
   // Aplicar filtro de tipo de visualização para receitas
@@ -1497,6 +1623,10 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 
   if (mes !== null && mes !== undefined) {
     despesasWhere = and(despesasWhere, eq(contasAPagar.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    despesasWhere = and(despesasWhere, eq(contasAPagar.ano, ano));
   }
 
   // Aplicar filtro de tipo de visualização para despesas
@@ -1620,7 +1750,7 @@ export async function getDRESummary(uploadId: number, mes?: number | null, tipoV
 }
 
 // Buscar DRE de todos os meses para tabela horizontal
-export async function getDREPorMeses(uploadId: number, codFilial?: number[] | null) {
+export async function getDREPorMeses(uploadId: number, codFilial?: number[] | null, ano?: number | null) {
   const db = await getDb();
   if (!db) return [];
 
@@ -1628,7 +1758,7 @@ export async function getDREPorMeses(uploadId: number, codFilial?: number[] | nu
   const drePorMeses = [];
 
   for (const mes of meses) {
-    const dre = await getDRESummary(uploadId, mes, "realizado", codFilial);
+    const dre = await getDRESummary(uploadId, mes, "realizado", codFilial, ano);
     if (dre) {
       drePorMeses.push({
         mes,
@@ -1929,11 +2059,9 @@ export async function getDespesasPessoalCategorizadas(
     const valor = Number(despesa.valorPago || 0);
     const catKey = categoria === "prolabore"
       ? "pro-labore"
-      : categoria === "distribuicaoLucros"
-        ? "distribuicao-lucros"
-        : categoria === "outras"
-          ? "outros"
-          : categoria;
+      : categoria === "outras"
+        ? "outros"
+        : categoria;
     categorias[catKey] = (categorias[catKey] || 0) + valor;
   }
 
@@ -1949,7 +2077,8 @@ export async function getDespesasPessoalDetalhadas(
   uploadId: number,
   categoria: "salario" | "comissao" | "bonus" | "prolabore",
   codFilial?: number[] | null,
-  mes?: number | null
+  mes?: number | null,
+  ano?: number | null
 ) {
   const db = await getDb();
   if (!db) return [];
@@ -1963,6 +2092,10 @@ export async function getDespesasPessoalDetalhadas(
 
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   // Buscar todas as despesas
@@ -1987,7 +2120,8 @@ export async function getDespesasPessoalDetalhadas(
 export async function getFolhaPagamentoPorDespesas(
   uploadId: number,
   codFilial?: number[] | null,
-  mes?: number | null
+  mes?: number | null,
+  ano?: number | null
 ) {
   const db = await getDb();
   if (!db) return { porMes: [], porCategoria: { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 } };
@@ -2001,6 +2135,10 @@ export async function getFolhaPagamentoPorDespesas(
 
   if (mes !== null && mes !== undefined) {
     whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.ano, ano));
   }
 
   // Buscar todas as despesas de pessoal com data de pagamento

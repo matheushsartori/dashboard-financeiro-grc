@@ -11,18 +11,18 @@ import {
 // Função auxiliar para converter valores monetários para centavos
 function toCents(value: any): number {
   if (value === null || value === undefined || value === "") return 0;
-  
+
   // Se já é número, converter diretamente
   if (typeof value === "number") {
     return Math.round(value * 100);
   }
-  
+
   // Se é string, limpar e converter
   if (typeof value === "string") {
     // Remover "R$", espaços e outros caracteres não numéricos
     // Manter apenas dígitos, pontos, vírgulas e hífen (para negativos)
     let cleaned = value.replace(/[^\d.,-]/g, "");
-    
+
     // Se tem vírgula e ponto, assumir que vírgula é separador decimal (formato brasileiro)
     if (cleaned.includes(",") && cleaned.includes(".")) {
       // Formato: 1.234,56 -> remover ponto de milhar, vírgula vira ponto
@@ -32,11 +32,11 @@ function toCents(value: any): number {
       cleaned = cleaned.replace(",", ".");
     }
     // Se só tem ponto, assumir que é separador decimal
-    
+
     const num = parseFloat(cleaned);
     return isNaN(num) ? 0 : Math.round(num * 100);
   }
-  
+
   // Para outros tipos, tentar converter para número
   const num = Number(value);
   return isNaN(num) ? 0 : Math.round(num * 100);
@@ -45,10 +45,10 @@ function toCents(value: any): number {
 // Função para identificar tipo de vínculo (CLT/PJ) baseado no tipoPagamento e área
 function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: string | null | undefined): "CLT" | "PJ" | "INDEFINIDO" {
   if (!tipoPagamento) return "INDEFINIDO";
-  
+
   const tipoUpper = tipoPagamento.toUpperCase().trim();
   const areaUpper = area ? area.toUpperCase().trim() : "";
-  
+
   // Identificadores explícitos de PJ
   if (
     tipoUpper.includes("PJ") ||
@@ -65,7 +65,7 @@ function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: 
   ) {
     return "PJ";
   }
-  
+
   // Identificadores explícitos de CLT/PF
   if (
     tipoUpper.includes("SALÁRIO") ||
@@ -85,23 +85,23 @@ function identificarTipoVinculo(tipoPagamento: string | null | undefined, area: 
   ) {
     return "CLT";
   }
-  
+
   return "INDEFINIDO";
 }
 
 // Função auxiliar para converter datas do Excel
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
-  
+
   // Se já é uma data
   if (value instanceof Date) return value;
-  
+
   // Se é um número (data do Excel)
   if (typeof value === "number") {
     const date = XLSX.SSF.parse_date_code(value);
     return new Date(date.y, date.m - 1, date.d);
   }
-  
+
   // Se é uma string, tentar parsear
   if (typeof value === "string") {
     // Formato DD/MM/YYYY
@@ -113,7 +113,7 @@ function parseExcelDate(value: any): Date | null {
       return new Date(year, month, day);
     }
   }
-  
+
   return null;
 }
 
@@ -121,6 +121,12 @@ function parseExcelDate(value: any): Date | null {
 function getMonth(date: Date | null): number | null {
   if (!date) return null;
   return date.getMonth() + 1; // 1-12
+}
+
+// Função auxiliar para extrair ano de uma data
+function getYear(date: Date | null): number | null {
+  if (!date) return null;
+  return date.getFullYear();
 }
 
 // Função para categorizar tipo de despesa de pessoal baseado no código analítico e histórico
@@ -215,6 +221,41 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
     folhaPagamento: [],
     saldosBancarios: [],
   };
+
+  // Tentar encontrar o ano do relatório primeiro
+  let reportYear = new Date().getFullYear();
+  let foundYear = false;
+
+  // Verificar se existe a coluna ANO nas planilhas de movimento
+  for (const name of ["PAGO", "GERAL A PAGAR", "RECEBIDO", "GERAL A RECEBER"]) {
+    if (workbook.SheetNames.includes(name)) {
+      const sheet = workbook.Sheets[name];
+      const data = XLSX.utils.sheet_to_json(sheet) as any[];
+      if (data.length > 0) {
+        const firstRow = data[0];
+        if (firstRow["ANO"]) {
+          reportYear = Number(firstRow["ANO"]);
+          foundYear = true;
+          break;
+        } else {
+          // Tentar extrair de alguma data
+          const possibleDateFields = ["DTPAGTO", "DTLANC", "DTPAG", "DTEMISSAO"];
+          for (const field of possibleDateFields) {
+            if (firstRow[field]) {
+              const date = parseExcelDate(firstRow[field]);
+              const year = getYear(date);
+              if (year) {
+                reportYear = year;
+                foundYear = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (foundYear) break;
+  }
 
   // Parse PG - GRC (Plano de Contas)
   if (workbook.SheetNames.includes("PG - GRC")) {
@@ -315,6 +356,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         valorPago: toCents(row["VPAGO"]),
         dataPagamento,
         mes: row["MÊS"] ? Number(row["MÊS"]) : (dataPagamento ? getMonth(dataPagamento) : (dataLancamento ? getMonth(dataLancamento) : null)),
+        ano: row["ANO"] ? Number(row["ANO"]) : (dataPagamento ? getYear(dataPagamento) : (dataLancamento ? getYear(dataLancamento) : null)),
         numBanco: row["NUMBANCO"] ? String(row["NUMBANCO"]) : null,
         banco: row["BANCO"] || row["BANCO "] || null, // Pode ter espaço no final
         agencia: row["AGENCIA"] ? String(row["AGENCIA"]) : null,
@@ -356,6 +398,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         valorRecebido: toCents(row["VPAGO"]),
         dataRecebimento,
         mes: row["MÊS"] ? Number(row["MÊS"]) : (dataRecebimento ? getMonth(dataRecebimento) : (dataLancamento ? getMonth(dataLancamento) : null)),
+        ano: row["ANO"] ? Number(row["ANO"]) : (dataRecebimento ? getYear(dataRecebimento) : (dataLancamento ? getYear(dataLancamento) : null)),
         numBanco: row["NUM BANCO"] ? String(row["NUM BANCO"]) : null, // Note: "NUM BANCO" com espaço
         banco: null, // Não existe na nova estrutura de RECEBIDO
         agencia: null, // Não existe na nova estrutura de RECEBIDO
@@ -393,6 +436,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
         mes6: toCents(row["6"]),
         mes7: toCents(row["7"]),
         mes8: toCents(row["8"]),
+        ano: reportYear,
         total: toCents(row["TOTAL"]),
       });
     }
@@ -425,7 +469,7 @@ export function parseExcelFile(buffer: Buffer, uploadId: number): ParsedExcelDat
           saldoSistema: toCents(row[2]),
           desvio: toCents(row[3]),
           mes: null,
-          ano: null,
+          ano: reportYear,
         });
       }
     }
