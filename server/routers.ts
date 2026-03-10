@@ -396,7 +396,7 @@ export const appRouter = router({
     getDespesasPessoalDetalhadas: protectedProcedure
       .input(z.object({
         uploadId: z.number(),
-        categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
+        categoria: z.enum(["salario", "comissao", "bonus", "prolabore", "distribuicao-lucros"]),
         codFilial: z.array(z.number()).nullable().optional(),
         mes: z.number().nullable().optional(),
         ano: z.number().nullable().optional(),
@@ -423,7 +423,7 @@ export const appRouter = router({
     getFolhaPagamentoDetalhada: protectedProcedure
       .input(z.object({
         uploadId: z.number(),
-        categoria: z.enum(["salario", "comissao", "bonus", "prolabore"]),
+        categoria: z.enum(["salario", "comissao", "bonus", "prolabore", "distribuicao-lucros"]),
         codFilial: z.array(z.number()).nullable().optional(),
         mes: z.number().nullable().optional(),
         ano: z.number().nullable().optional(),
@@ -431,6 +431,19 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getFolhaPagamentoDetalhada } = await import("./db-financial");
         return getFolhaPagamentoDetalhada(input.uploadId, input.categoria, input.codFilial, input.mes, input.ano);
+      }),
+
+    // Obter acumulado de todos os tipos de pagamento por colaborador
+    getAcumuladoColaboradores: protectedProcedure
+      .input(z.object({
+        uploadId: z.number(),
+        codFilial: z.array(z.number()).nullable().optional(),
+        mes: z.number().nullable().optional(),
+        ano: z.number().nullable().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getAcumuladoColaboradores } = await import("./db-financial");
+        return getAcumuladoColaboradores(input.uploadId, input.codFilial, input.mes, input.ano);
       }),
 
     // Obter filiais disponíveis para um upload

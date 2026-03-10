@@ -136,7 +136,7 @@ export function categorizarDespesaPessoal(
   despesaAnalitico: string | null | undefined,
   descricaoAnalitica: string | null | undefined,
   historico: string | null | undefined
-): "salario" | "comissao" | "bonus" | "prolabore" | "outras" {
+): "salario" | "comissao" | "bonus" | "prolabore" | "distribuicao-lucros" | "outras" {
   if (!despesaAnalitico && !descricaoAnalitica && !historico) {
     return "outras";
   }
@@ -178,6 +178,16 @@ export function categorizarDespesaPessoal(
     historicoStr.includes("BÔNUS")
   ) {
     return "bonus";
+  }
+
+  // Distribuição de Lucros
+  if (
+    descricaoStr.includes("DISTRIBUIÇÃO DE LUCRO") ||
+    descricaoStr.includes("DISTRIBUICAO DE LUCRO") ||
+    historicoStr.includes("DISTRIBUIÇÃO DE LUCRO") ||
+    historicoStr.includes("DISTRIBUICAO DE LUCRO")
+  ) {
+    return "distribuicao-lucros";
   }
 
   // Salários: códigos 600017, 200001, 600026

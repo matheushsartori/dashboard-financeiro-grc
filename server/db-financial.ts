@@ -1936,7 +1936,7 @@ function categorizarDespesaPessoal(
   despesaAnalitico: string | null | undefined,
   descricaoAnalitica: string | null | undefined,
   historico: string | null | undefined
-): "salario" | "comissao" | "bonus" | "prolabore" | "outras" {
+): "salario" | "comissao" | "bonus" | "prolabore" | "distribuicao-lucros" | "outras" {
   if (!despesaAnalitico && !descricaoAnalitica && !historico) {
     return "outras";
   }
@@ -1978,6 +1978,16 @@ function categorizarDespesaPessoal(
     historicoStr.includes("BÔNUS")
   ) {
     return "bonus";
+  }
+
+  // Distribuição de Lucros
+  if (
+    descricaoStr.includes("DISTRIBUIÇÃO DE LUCRO") ||
+    descricaoStr.includes("DISTRIBUICAO DE LUCRO") ||
+    historicoStr.includes("DISTRIBUIÇÃO DE LUCRO") ||
+    historicoStr.includes("DISTRIBUICAO DE LUCRO")
+  ) {
+    return "distribuicao-lucros";
   }
 
   // Salários: códigos 600017, 200001, 600026
@@ -2075,7 +2085,7 @@ export async function getDespesasPessoalCategorizadas(
 // Obter despesas de pessoal detalhadas por categoria
 export async function getDespesasPessoalDetalhadas(
   uploadId: number,
-  categoria: "salario" | "comissao" | "bonus" | "prolabore",
+  categoria: "salario" | "comissao" | "bonus" | "prolabore" | "distribuicao-lucros",
   codFilial?: number[] | null,
   mes?: number | null,
   ano?: number | null
@@ -2124,7 +2134,7 @@ export async function getFolhaPagamentoPorDespesas(
   ano?: number | null
 ) {
   const db = await getDb();
-  if (!db) return { porMes: [], porCategoria: { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 } };
+  if (!db) return { porMes: [], porCategoria: { salario: 0, comissao: 0, bonus: 0, prolabore: 0, "distribuicao-lucros": 0, outras: 0, total: 0 } };
 
   let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
 
@@ -2157,8 +2167,8 @@ export async function getFolhaPagamentoPorDespesas(
     .where(whereCondition);
 
   // Agrupar por mês e categoria
-  const porMes: Record<number, { salario: number, comissao: number, bonus: number, prolabore: number, outras: number, total: number }> = {};
-  const porCategoria = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+  const porMes: Record<number, { salario: number, comissao: number, bonus: number, prolabore: number, "distribuicao-lucros": number, outras: number, total: number }> = {};
+  const porCategoria = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, "distribuicao-lucros": 0, outras: 0, total: 0 };
 
   for (const despesa of despesas) {
     const categoria = categorizarDespesaPessoal(
@@ -2178,7 +2188,7 @@ export async function getFolhaPagamentoPorDespesas(
 
     if (mesDespesa) {
       if (!porMes[mesDespesa]) {
-        porMes[mesDespesa] = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, outras: 0, total: 0 };
+        porMes[mesDespesa] = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, "distribuicao-lucros": 0, outras: 0, total: 0 };
       }
       porMes[mesDespesa][categoria] += valor;
       porMes[mesDespesa].total += valor;
@@ -2203,7 +2213,7 @@ export async function getFolhaPagamentoPorDespesas(
 // Obter detalhes de folha de pagamento por categoria e mês
 export async function getFolhaPagamentoDetalhada(
   uploadId: number,
-  categoria: "salario" | "comissao" | "bonus" | "prolabore",
+  categoria: "salario" | "comissao" | "bonus" | "prolabore" | "distribuicao-lucros",
   codFilial?: number[] | null,
   mes?: number | null,
   ano?: number | null
@@ -2269,4 +2279,76 @@ export async function getFolhaPagamentoDetalhada(
       despesaAnalitico: despesa.despesaAnalitico,
     }));
 }
+
+// Obter acumulado por colaborador
+export async function getAcumuladoColaboradores(
+  uploadId: number,
+  codFilial?: number[] | null,
+  mes?: number | null,
+  ano?: number | null
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let whereCondition: any = eq(contasAPagar.uploadId, uploadId);
+
+  const filialFilter = buildFilialFilter(codFilial, contasAPagar.codFilial);
+  if (filialFilter) {
+    whereCondition = and(whereCondition, filialFilter);
+  }
+
+  if (mes !== null && mes !== undefined) {
+    whereCondition = and(whereCondition, eq(contasAPagar.mes, mes));
+  }
+
+  // Filtrar por ano usando a data de pagamento
+  if (ano !== null && ano !== undefined) {
+    whereCondition = and(
+      whereCondition,
+      sql`EXTRACT(YEAR FROM ${contasAPagar.dataPagamento}) = ${ano}`
+    );
+  }
+
+  // Buscar todas as despesas
+  const despesas = await db
+    .select({
+      fornecedor: contasAPagar.fornecedor,
+      valorPago: contasAPagar.valorPago,
+      despesaAnalitico: contasAPagar.despesaAnalitico,
+      descricaoDespesaAnalitica: contasAPagar.descricaoDespesaAnalitica,
+      historico: contasAPagar.historico,
+    })
+    .from(contasAPagar)
+    .where(whereCondition);
+
+  const currentColaboradores: Record<string, { salario: number; comissao: number; bonus: number; prolabore: number; "distribuicao-lucros": number; total: number }> = {};
+
+  for (const despesa of despesas) {
+    const fnNome = (despesa.fornecedor || "Não identificado").trim().toUpperCase();
+    const categoria = categorizarDespesaPessoal(
+      despesa.despesaAnalitico,
+      despesa.descricaoDespesaAnalitica,
+      despesa.historico
+    );
+
+    // Only include valid categories
+    if (!["salario", "comissao", "bonus", "prolabore", "distribuicao-lucros"].includes(categoria)) {
+      continue;
+    }
+
+    if (!currentColaboradores[fnNome]) {
+      currentColaboradores[fnNome] = { salario: 0, comissao: 0, bonus: 0, prolabore: 0, "distribuicao-lucros": 0, total: 0 };
+    }
+
+    const valor = Number(despesa.valorPago || 0);
+    // @ts-ignore
+    currentColaboradores[fnNome][categoria] += valor;
+    currentColaboradores[fnNome].total += valor;
+  }
+
+  return Object.entries(currentColaboradores)
+    .map(([nome, valores]) => ({ nome, ...valores }))
+    .sort((a, b) => b.total - a.total);
+}
+
 // Funções para gerenciar importações

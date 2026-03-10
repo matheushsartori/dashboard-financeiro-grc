@@ -156,8 +156,19 @@ export default function Folha() {
     { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
   );
 
+  const { data: detalhesDistribuicaoLucros, isLoading: loadingDetalhesDistribuicaoLucros } = trpc.financial.getFolhaPagamentoDetalhada.useQuery(
+    { uploadId: latestUpload!, categoria: "distribuicao-lucros", codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
+  // Obter acumulado de todos os tipos de pagamento por colaborador
+  const { data: acumuladoColaboradores, isLoading: loadingAcumuladoColaboradores } = trpc.financial.getAcumuladoColaboradores.useQuery(
+    { uploadId: latestUpload!, codFilial: codFilialFilter, mes: selectedMonth, ano: selectedYear },
+    { enabled: !!latestUpload, staleTime: 3 * 60 * 1000 }
+  );
+
   // Combinar todos os estados de loading
-  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha || loadingFolhaSeparada || loadingFolhaPorDespesas || loadingDespesasCategorizadas));
+  const isLoading = loadingUploads || (!!latestUpload && (loadingSummary || loadingFolha || loadingFolhaSeparada || loadingFolhaPorDespesas || loadingDespesasCategorizadas || loadingAcumuladoColaboradores));
 
   // Separar folha em CLT e PJ (sempre executar, mesmo que folha seja undefined)
   // Usar tipoVinculo do banco se disponível, senão usar heurística
@@ -527,7 +538,7 @@ export default function Folha() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-4 mb-6">
+            <div className="grid gap-4 md:grid-cols-5 mb-6">
               {despesasCategorizadas
                 .filter(item => item.categoria !== "outros") // Ocultar "outros" que geralmente não é despesa de pessoal
                 .map((item) => {
@@ -574,6 +585,7 @@ export default function Folha() {
                     Comissões: m.comissao / 100,
                     Bônus: m.bonus / 100,
                     "Pro-labore": m.prolabore / 100,
+                    "Dist. Lucros": (m["distribuicao-lucros"] || 0) / 100,
                   }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="mes" />
@@ -584,6 +596,7 @@ export default function Folha() {
                     <Bar dataKey="Comissões" fill="#10b981" />
                     <Bar dataKey="Bônus" fill="#f59e0b" />
                     <Bar dataKey="Pro-labore" fill="#8b5cf6" />
+                    <Bar dataKey="Dist. Lucros" fill="#059669" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -603,7 +616,7 @@ export default function Folha() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="salario" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="salario" className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
                   Salários
@@ -619,6 +632,10 @@ export default function Folha() {
                 <TabsTrigger value="prolabore" className="flex items-center gap-2">
                   <Briefcase className="h-4 w-4" />
                   Pro-labore
+                </TabsTrigger>
+                <TabsTrigger value="distribuicao-lucros" className="flex items-center gap-2 hover:whitespace-normal h-auto py-1 text-xs text-center" style={{ minHeight: '40px' }}>
+                  <TrendingUp className="h-4 w-4 hidden sm:block" />
+                  <span className="truncate">Dist. de Lucros</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -865,7 +882,126 @@ export default function Folha() {
                   />
                 )}
               </TabsContent>
+
+              {/* Tab Distribuição de Lucros */}
+              <TabsContent value="distribuicao-lucros" className="mt-6">
+                {loadingDetalhesDistribuicaoLucros ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <DataTable
+                    data={detalhesDistribuicaoLucros || []}
+                    columns={[
+                      {
+                        key: "fornecedor",
+                        label: "Colaborador/Sócio",
+                        render: (value) => <span className="font-medium">{value || "-"}</span>,
+                      },
+                      {
+                        key: "descricao",
+                        label: "Descrição",
+                        render: (value) => <span className="text-sm">{value || "-"}</span>,
+                      },
+                      {
+                        key: "historico",
+                        label: "Histórico",
+                        render: (value) => <span className="text-sm text-muted-foreground">{value || "-"}</span>,
+                      },
+                      {
+                        key: "dataPagamento",
+                        label: "Data Pagamento",
+                        render: (value) => value ? new Date(value).toLocaleDateString("pt-BR") : "-",
+                      },
+                      {
+                        key: "valorPago",
+                        label: "Valor Pago",
+                        render: (value) => (
+                          <span className="font-bold text-emerald-600">{formatCurrency(value)}</span>
+                        ),
+                        className: "text-right",
+                      },
+                    ]}
+                    searchable={true}
+                    searchPlaceholder="Buscar por colaborador..."
+                    searchKeys={["fornecedor", "descricao", "historico"]}
+                    pageSize={15}
+                    emptyMessage="Nenhuma distribuição de lucros encontrada"
+                  />
+                )}
+              </TabsContent>
             </Tabs>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabela de Acumulado de Colaboradores */}
+      {acumuladoColaboradores && acumuladoColaboradores.length > 0 && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Acumulado por Colaborador</CardTitle>
+            <CardDescription>
+              Valor total pago acumulado (soma de salários, comissões, bônus, pro-labore e distribuição de lucros) por colaborador.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingAcumuladoColaboradores ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <DataTable
+                data={acumuladoColaboradores}
+                columns={[
+                  {
+                    key: "nome",
+                    label: "Colaborador",
+                    render: (value) => <span className="font-medium whitespace-nowrap">{value || "-"}</span>,
+                  },
+                  {
+                    key: "salario",
+                    label: "Salários",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "comissao",
+                    label: "Comissões",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "bonus",
+                    label: "Bônus",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "prolabore",
+                    label: "Pro-labore",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "distribuicao-lucros",
+                    label: "Dist. Lucros",
+                    render: (value) => formatCurrency(value),
+                    className: "text-right",
+                  },
+                  {
+                    key: "total",
+                    label: "Total Acumulado",
+                    render: (value) => <span className="font-bold text-base text-primary whitespace-nowrap">{formatCurrency(value)}</span>,
+                    className: "text-right",
+                  },
+                ]}
+                searchable={true}
+                searchPlaceholder="Buscar por nome do colaborador..."
+                searchKeys={["nome"]}
+                pageSize={15}
+                emptyMessage="Nenhum dado de pagamento por colaborador encontrado"
+              />
+            )}
           </CardContent>
         </Card>
       )}
