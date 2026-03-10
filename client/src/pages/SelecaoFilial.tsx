@@ -34,7 +34,7 @@ export default function SelecaoFilial() {
     } else {
       localStorage.setItem("selectedFilial", codFilial.toString());
     }
-    
+
     // Redirecionar para o dashboard
     const params = new URLSearchParams();
     if (uploadId) params.set("uploadId", uploadId);
@@ -156,7 +156,9 @@ export default function SelecaoFilial() {
                   <Building2 className="h-5 w-5" />
                   {filial.nome}
                 </CardTitle>
-                <CardDescription>Filial {filial.codigo}</CardDescription>
+                {filial.nome !== `Filial ${filial.codigo}` && (
+                  <CardDescription>Filial {filial.codigo}</CardDescription>
+                )}
               </CardHeader>
               <CardContent>
                 <Button className="w-full" variant="outline">

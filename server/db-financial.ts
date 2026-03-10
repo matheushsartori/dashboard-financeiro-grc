@@ -130,21 +130,10 @@ export async function upsertFiliaisFromData(contasAPagar: InsertContaAPagar[], c
 
   console.log(`[upsertFiliaisFromData] Filiais encontradas: ${Array.from(filiaisEncontradas).sort((a, b) => a - b).join(", ")}`);
 
-  // Mapeamento de nomes padrão conhecidos
-  // Baseado na documentação: filiais [1, 3, 4, 5, 6, 7]
-  const nomesPadrao: Record<number, string> = {
-    1: "Matriz (RP)",
-    3: "Sul",
-    4: "BH",
-    5: "Filial 5",
-    6: "Filial 6",
-    7: "Filial 7",
-  };
-
   // Para cada filial encontrada, criar ou atualizar na tabela
   const filiaisArray = Array.from(filiaisEncontradas).sort((a, b) => a - b);
   for (const codigo of filiaisArray) {
-    const nome = nomesPadrao[codigo] || `Filial ${codigo}`;
+    const nome = `Filial ${codigo}`;
 
     try {
       // Verificar se já existe
@@ -156,7 +145,7 @@ export async function upsertFiliaisFromData(contasAPagar: InsertContaAPagar[], c
 
       if (existente.length > 0) {
         // Se existe mas o nome mudou, atualizar
-        if (existente[0].nome !== nome && nomesPadrao[codigo]) {
+        if (existente[0].nome !== nome) {
           await db
             .update(filiais)
             .set({ nome })
@@ -948,7 +937,7 @@ export async function getReceitasPorFilial(uploadId: number, mes?: number | null
     .from(filiais)
     .where(inArray(filiais.codigo, result.map(r => r.codFilial!).filter(Boolean)));
 
-  const filiaisMap = new Map(filiaisData.map(f => [f.codigo, f.nome]));
+  const filiaisMap = new Map(filiaisData.map(f => [f.codigo, `Filial ${f.codigo}`]));
 
   return result.map(r => ({
     codFilial: r.codFilial!,
@@ -1857,7 +1846,7 @@ export async function getFiliaisDisponiveis(uploadId: number) {
   if (filiaisCadastradas.length > 0) {
     return filiaisCadastradas.map(f => ({
       codigo: f.codigo,
-      nome: f.nome,
+      nome: `Filial ${f.codigo}`,
     }));
   }
 
